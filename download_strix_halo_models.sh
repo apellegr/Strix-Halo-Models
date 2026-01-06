@@ -1,13 +1,13 @@
 #!/bin/bash
 
 #===============================================================================
-# Strix Halo 395+ Model Downloader (128GB Unified Memory) - FIXED VERSION
+# Strix Halo 395+ Model Downloader (128GB Unified Memory) - v3 FIXED
 #===============================================================================
 # This script downloads the best GGUF models optimized for AMD Ryzen AI Max+ 395
 # with 128GB LPDDR5X unified memory (~96-115GB available for GPU compute via GTT)
 #
-# IMPORTANT: Uses bartowski's repos where possible for single-file downloads
-# with consistent naming. Official Qwen repos often have split files.
+# IMPORTANT: Uses bartowski's repos where possible for single-file downloads.
+# Unsloth repos use subdirectories for quantization levels.
 #===============================================================================
 
 set -e
@@ -87,10 +87,8 @@ download_model() {
         return 0
     fi
     
-    hf download "$repo" "$filename" \
-        --local-dir "$target_dir"
-    
-    if [ $? -eq 0 ]; then
+    if hf download "$repo" "$filename" \
+        --local-dir "$target_dir"; then
         print_success "Downloaded: $filename\n"
     else
         print_error "Failed to download: $filename\n"
@@ -98,7 +96,7 @@ download_model() {
     fi
 }
 
-# Download files matching a pattern (for split files)
+# Download files matching a pattern (for split files or folders)
 download_model_pattern() {
     local repo=$1
     local pattern=$2
@@ -118,11 +116,9 @@ download_model_pattern() {
         return 0
     fi
     
-    hf download "$repo" \
+    if hf download "$repo" \
         --include "$pattern" \
         --local-dir "$target_dir" 
-    
-    if [ $? -eq 0 ]; then
         print_success "Downloaded: $pattern\n"
     else
         print_error "Failed to download: $pattern\n"
@@ -170,7 +166,7 @@ setup_environment() {
 #===============================================================================
 
 download_fast_models() {
-    print_header "FAST MODELS (7B-8B) - 20-50+ tok/s on Strix Halo"
+    print_header "FAST MODELS (3B-9B) - 20-50+ tok/s on Strix Halo"
     
     # Llama 3.2 3B - Ultra fast (bartowski repo - single file)
     download_model "bartowski/Llama-3.2-3B-Instruct-GGUF" \
@@ -240,7 +236,7 @@ download_balanced_models() {
 download_large_models() {
     print_header "LARGE MODELS (70B) - 3-15 tok/s on Strix Halo"
     
-    # Llama 3.3 70B - Best open 70B model (bartowski - split files)
+    # Llama 3.3 70B - Best open 70B model (bartowski - split files in folder)
     download_model_pattern "bartowski/Llama-3.3-70B-Instruct-GGUF" \
         "Llama-3.3-70B-Instruct-Q4_K_M/*" \
         "large/llama-3.3-70b" \
@@ -263,19 +259,27 @@ download_massive_models() {
     print_header "MASSIVE MODELS (100B+) - 1-5 tok/s on Strix Halo"
     print_warning "These models push the limits of 128GB - slower but functional"
     
-    # Qwen 3 235B A22B (MoE) - Fits in 128GB with Q3_K (unsloth)
-    download_model_pattern "unsloth/Qwen3-235B-A22B-Instruct-2507-GGUF" \
-        "*Q3_K_XL*.gguf" \
-        "massive/qwen3-235b" \
-        "Qwen 3 235B-A22B MoE (Q3_K_XL) - ~97GB, frontier MoE model"
-    
-    # Llama 4 Scout 17B (MoE, 1M context capable) - unsloth
-    download_model "unsloth/Llama-4-Scout-17B-16E-Instruct-GGUF" \
-        "Llama-4-Scout-17B-16E-Instruct-Q4_K_M.gguf" \
+    # Llama 4 Scout 17B-16E (MoE, 109B total params) - unsloth
+    # Files are in Q4_K_M subdirectory
+    download_model_pattern "unsloth/Llama-4-Scout-17B-16E-Instruct-GGUF" \
+        "Q4_K_M/*" \
         "massive/llama-4-scout" \
-        "Llama 4 Scout 17B 16E (Q4_K_M) - MoE, up to 1M context"
+        "Llama 4 Scout 17B-16E MoE (Q4_K_M) - ~60GB, multimodal"
     
-    # Mistral Large 123B (bartowski)
+    # Also download the vision projector for Llama 4
+    download_model "unsloth/Llama-4-Scout-17B-16E-Instruct-GGUF" \
+        "mmproj-BF16.gguf" \
+        "massive/llama-4-scout" \
+        "Llama 4 Scout Vision Projector (BF16) - ~1.7GB"
+    
+    # Qwen 3 235B A22B (MoE) - unsloth Dynamic quant
+    # Use UD (Unsloth Dynamic) Q3_K_XL for best quality that fits
+    download_model_pattern "unsloth/Qwen3-235B-A22B-Instruct-2507-GGUF" \
+        "*UD-Q3_K_XL*" \
+        "massive/qwen3-235b" \
+        "Qwen 3 235B-A22B MoE (UD-Q3_K_XL) - ~97GB, frontier model"
+    
+    # Mistral Large 123B (bartowski - split files)
     download_model_pattern "bartowski/Mistral-Large-Instruct-2407-GGUF" \
         "Mistral-Large-Instruct-2407-Q3_K_L/*" \
         "massive/mistral-large-123b" \
@@ -303,7 +307,7 @@ download_coding_models() {
         "coding/deepseek-coder-v2-16b" \
         "DeepSeek Coder V2 Lite 16B (Q5_K_M) - ~11GB, strong coder"
     
-    # CodeLlama 70B - Large code model (TheBloke - split files)
+    # CodeLlama 70B - Large code model (TheBloke)
     download_model_pattern "TheBloke/CodeLlama-70B-Instruct-GGUF" \
         "codellama-70b-instruct.Q4_K_M.gguf*" \
         "coding/codellama-70b" \
@@ -366,15 +370,15 @@ download_specialized_models() {
 
 show_menu() {
     echo -e "\n${CYAN}╔════════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║${NC}     ${YELLOW}Strix Halo 395+ Model Downloader${NC} (Fixed Version)             ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC}     ${YELLOW}Strix Halo 395+ Model Downloader${NC} (v3 Fixed)                  ${CYAN}║${NC}"
     echo -e "${CYAN}║${NC}     ${BLUE}128GB Unified Memory Edition${NC}                                  ${CYAN}║${NC}"
     echo -e "${CYAN}╠════════════════════════════════════════════════════════════════════╣${NC}"
     echo -e "${CYAN}║${NC}                                                                    ${CYAN}║${NC}"
     echo -e "${CYAN}║${NC}  ${GREEN}1)${NC} Download ALL models (requires ~600GB+ disk space)            ${CYAN}║${NC}"
-    echo -e "${CYAN}║${NC}  ${GREEN}2)${NC} Fast Models (7-8B) - Quick responses, ~25GB total             ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC}  ${GREEN}2)${NC} Fast Models (3-9B) - Quick responses, ~25GB total             ${CYAN}║${NC}"
     echo -e "${CYAN}║${NC}  ${GREEN}3)${NC} Balanced Models (14-32B) - Quality/speed, ~80GB total         ${CYAN}║${NC}"
     echo -e "${CYAN}║${NC}  ${GREEN}4)${NC} Large Models (70B) - High capability, ~130GB total            ${CYAN}║${NC}"
-    echo -e "${CYAN}║${NC}  ${GREEN}5)${NC} Massive Models (100B+) - Frontier models, ~160GB total        ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC}  ${GREEN}5)${NC} Massive Models (100B+) - Frontier models, ~220GB total        ${CYAN}║${NC}"
     echo -e "${CYAN}║${NC}  ${GREEN}6)${NC} Coding Models - Programming optimized, ~80GB total            ${CYAN}║${NC}"
     echo -e "${CYAN}║${NC}  ${GREEN}7)${NC} Vision Models - Multimodal, ~20GB total                       ${CYAN}║${NC}"
     echo -e "${CYAN}║${NC}  ${GREEN}8)${NC} Specialized Models - RAG, MoE, etc., ~125GB total             ${CYAN}║${NC}"
@@ -438,7 +442,7 @@ main() {
     echo "  ║   ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝    ╚═╝  ╚═╝╚═╝  ╚═╝   ║"
     echo "  ║                                                               ║"
     echo "  ║           Model Downloader for 128GB Systems                  ║"
-    echo "  ║                    (Fixed Version)                            ║"
+    echo "  ║                      (v3 Fixed)                               ║"
     echo "  ╚═══════════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
     
@@ -549,7 +553,7 @@ case "${1:-}" in
         echo "Usage: $0 [OPTION]"
         echo ""
         echo "Options:"
-        echo "  --fast         Download fast models (7-8B)"
+        echo "  --fast         Download fast models (3-9B)"
         echo "  --balanced     Download balanced models (14-32B)"
         echo "  --large        Download large models (70B)"
         echo "  --massive      Download massive models (100B+)"
