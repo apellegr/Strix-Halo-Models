@@ -279,12 +279,27 @@ download_massive_models() {
         "*UD-Q3_K_XL*" \
         "massive/qwen3-235b" \
         "Qwen 3 235B-A22B MoE (UD-Q3_K_XL) - ~97GB, frontier model"
-    
+   
+    # Qwen 3 235B A22B Thinking (MoE) - Extended reasoning model
+    # Use Q3_K_M for best quality that fits in 128GB
+    download_model_pattern "unsloth/Qwen3-235B-A22B-Thinking-2507-GGUF" \
+        "Q3_K_M/*" \
+        "massive/qwen3-235b-thinking" \
+        "Qwen 3 235B-A22B Thinking (Q3_K_M) - ~97GB, state-of-art reasoning"
+
     # Mistral Large 123B (bartowski - split files)
     download_model_pattern "bartowski/Mistral-Large-Instruct-2407-GGUF" \
         "Mistral-Large-Instruct-2407-Q3_K_L/*" \
         "massive/mistral-large-123b" \
         "Mistral Large 123B (Q3_K_L) - ~60GB, high capability"
+
+    # OpenAI gpt-oss-120b - OpenAI's open-weight reasoning model (MoE, 117B params, 5.1B active)
+    # Uses harmony response format, supports reasoning levels (low/medium/high)
+    # IMPORTANT: Use native MXFP4 format - model is natively trained in MXFP4, no additional quantization needed
+    download_model_pattern "ggml-org/gpt-oss-120b-GGUF" \
+        "*mxfp4*" \
+        "massive/gpt-oss-120b" \
+        "OpenAI gpt-oss-120b (MXFP4) - ~63GB, OpenAI's open reasoning model"
 }
 
 download_coding_models() {
