@@ -331,8 +331,8 @@ download_vision_models() {
         "Qwen 2.5 VL 7B (Q5_K_M) - ~5GB, good vision + language"
     
     # Pixtral 12B - Mistral's vision model (bartowski)
-    download_model "bartowski/Pixtral-12B-2409-GGUF" \
-        "Pixtral-12B-2409-Q4_K_M.gguf" \
+    download_model "bartowski/mistral-community_pixtral-12b-GGUF" \
+        "mistral-community_pixtral-12b-Q4_K_M.gguf" \
         "vision/pixtral-12b" \
         "Pixtral 12B (Q4_K_M) - ~8GB, Mistral vision model"
 }
