@@ -118,7 +118,8 @@ download_model_pattern() {
     
     if hf download "$repo" \
         --include "$pattern" \
-        --local-dir "$target_dir" 
+        --local-dir "$target_dir";
+    then 
         print_success "Downloaded: $pattern\n"
     else
         print_error "Failed to download: $pattern\n"
