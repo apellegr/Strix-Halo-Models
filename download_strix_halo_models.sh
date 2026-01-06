@@ -347,13 +347,13 @@ download_specialized_models() {
         "Phi-4 14B (Q5_K_M) - ~10GB, efficient reasoning"
     
     # Command R+ 104B - RAG optimized (bartowski - split files)
-    download_model_pattern "bartowski/c4ai-command-r-plus-GGUF" \
-        "c4ai-command-r-plus-Q3_K_M/*" \
+    download_model_pattern "bartowski/c4ai-command-r-plus-08-2024-GGUF" \
+        "c4ai-command-r-plus-08-2024-Q3_K_M/*" \
         "specialized/command-r-plus" \
         "Command R+ 104B (Q3_K_M) - ~50GB, RAG & tool use"
     
     # Mixtral 8x22B MoE - Efficient large model (bartowski - split files)
-    download_model_pattern "bartowski/Mixtral-8x22B-Instruct-v0.1-GGUF" \
+    download_model_pattern "MaziyarPanahi/Mixtral-8x22B-Instruct-v0.1-GGUF" \
         "Mixtral-8x22B-Instruct-v0.1-Q3_K_M/*" \
         "specialized/mixtral-8x22b" \
         "Mixtral 8x22B MoE (Q3_K_M) - ~56GB, efficient MoE"
