@@ -9,6 +9,7 @@
 # Usage:
 #   ./start-llm-server.sh                    # Start default model (Qwen3-235B)
 #   ./start-llm-server.sh qwen3-235b         # Start specific model
+#   ./start-llm-server.sh qwen3-235b -c 16384  # Start with custom context size
 #   ./start-llm-server.sh stop               # Stop all servers
 #   ./start-llm-server.sh status             # Check server status
 #   ./start-llm-server.sh list               # List available models
@@ -183,6 +184,7 @@ print_error()   { echo -e "${RED}[ERROR]${NC} $1"; }
 get_pid_file() { echo "$RUN_DIR/${1}.pid"; }
 get_log_file() { echo "$RUN_DIR/${1}.log"; }
 get_port_file() { echo "$RUN_DIR/${1}.port"; }
+get_ctx_file() { echo "$RUN_DIR/${1}.ctx"; }
 
 # Check if a port is available
 is_port_available() {
@@ -375,6 +377,7 @@ is_running() {
 start_model() {
     local model_name="$1"
     local requested_port="$2"
+    local custom_ctx="$3"
 
     if [[ -z "${MODELS[$model_name]}" ]]; then
         print_error "Unknown model: $model_name"
@@ -401,6 +404,13 @@ start_model() {
             [[ -n "$saved_ctx" ]] && ctx_size="$saved_ctx"
             is_optimized="yes"
         fi
+    fi
+
+    # Override context size if user specified one
+    local user_ctx=""
+    if [[ -n "$custom_ctx" ]]; then
+        ctx_size="$custom_ctx"
+        user_ctx="$custom_ctx"
     fi
 
     if [[ ! -f "$model_path" ]]; then
@@ -450,6 +460,14 @@ start_model() {
 
     # Save the port for status tracking
     echo "$port" > "$port_file"
+
+    # Save custom context size if user specified one
+    local ctx_file=$(get_ctx_file "$model_name")
+    if [[ -n "$user_ctx" ]]; then
+        echo "$user_ctx" > "$ctx_file"
+    else
+        rm -f "$ctx_file"
+    fi
 
     # Start the server
     nohup "$LLAMA_SERVER" \
@@ -510,6 +528,7 @@ run_model_foreground() {
     # Run model in foreground (for systemd)
     local model_name="$1"
     local requested_port="$2"
+    local custom_ctx="$3"
 
     if [[ -z "${MODELS[$model_name]}" ]]; then
         echo "ERROR: Unknown model: $model_name" >&2
@@ -528,6 +547,13 @@ run_model_foreground() {
             [[ -n "$saved_ctx" ]] && ctx_size="$saved_ctx"
             is_optimized="yes"
         fi
+    fi
+
+    # Override context size if user specified one
+    local user_ctx=""
+    if [[ -n "$custom_ctx" ]]; then
+        ctx_size="$custom_ctx"
+        user_ctx="$custom_ctx"
     fi
 
     if [[ ! -f "$model_path" ]]; then
@@ -569,6 +595,14 @@ run_model_foreground() {
     echo $$ > "$pid_file"
     echo "$port" > "$port_file"
 
+    # Save custom context size if user specified one
+    local ctx_file=$(get_ctx_file "$model_name")
+    if [[ -n "$user_ctx" ]]; then
+        echo "$user_ctx" > "$ctx_file"
+    else
+        rm -f "$ctx_file"
+    fi
+
     # Exec replaces this process with llama-server
     exec "$LLAMA_SERVER" \
         --model "$model_path" \
@@ -587,6 +621,7 @@ stop_model() {
     local model_name="$1"
     local pid_file=$(get_pid_file "$model_name")
     local port_file=$(get_port_file "$model_name")
+    local ctx_file=$(get_ctx_file "$model_name")
 
     if [[ ! -f "$pid_file" ]]; then
         print_warning "Model '$model_name' is not running"
@@ -614,7 +649,7 @@ stop_model() {
         print_success "Stopped '$model_name'"
     fi
 
-    rm -f "$pid_file" "$port_file"
+    rm -f "$pid_file" "$port_file" "$ctx_file"
 }
 
 stop_all() {
@@ -635,18 +670,20 @@ stop_all() {
 show_status() {
     print_header "Server Status"
 
-    printf "%-25s %-8s %-18s %-8s %s\n" "MODEL" "PORT" "STATUS" "PID" "MEMORY"
-    printf "%-25s %-8s %-18s %-8s %s\n" "-----" "----" "------" "---" "------"
+    printf "%-25s %-8s %-18s %-8s %-8s %s\n" "MODEL" "PORT" "STATUS" "PID" "CTX" "MEMORY"
+    printf "%-25s %-8s %-18s %-8s %-8s %s\n" "-----" "----" "------" "---" "---" "------"
 
     local running_count=0
 
     for model_name in "${!MODELS[@]}"; do
         local pid_file=$(get_pid_file "$model_name")
         local port_file=$(get_port_file "$model_name")
+        local ctx_file=$(get_ctx_file "$model_name")
         local status="${RED}stopped${NC}"
         local pid="-"
         local mem="-"
         local port="-"
+        local ctx="-"
 
         if [[ -f "$pid_file" ]]; then
             pid=$(cat "$pid_file" 2>/dev/null) || pid=""
@@ -661,13 +698,17 @@ show_status() {
                 mem=$(ps -o rss= -p "$pid" 2>/dev/null | awk '{printf "%.1fGB", $1/1024/1024}') || mem="-"
                 # Get port from port file
                 port=$(cat "$port_file" 2>/dev/null) || port="-"
+                # Get custom context size if user specified one
+                if [[ -f "$ctx_file" ]]; then
+                    ctx=$(cat "$ctx_file" 2>/dev/null) || ctx="-"
+                fi
                 running_count=$((running_count + 1))
             fi
         fi
 
         printf "%-25s %-8s " "$model_name" "$port"
         echo -en "$status"
-        printf " %-8s %s\n" "$pid" "$mem"
+        printf " %-8s %-8s %s\n" "$pid" "$ctx" "$mem"
     done
 
     echo ""
@@ -675,6 +716,7 @@ show_status() {
         print_info "$running_count server(s) running"
         echo ""
         echo -e "Legend: ${GREEN}running (opt)${NC} = optimized config, ${YELLOW}running${NC} = default config"
+        echo "        CTX = user-specified context size (- means using default/optimized)"
     else
         print_info "No servers running"
     fi
@@ -739,11 +781,17 @@ show_help() {
     echo "  logs <model_name>    Follow logs for a model"
     echo "  help                 Show this help"
     echo ""
+    echo "Options:"
+    echo "  -c, --ctx <size>     Set custom context window size (e.g., 8192, 16384, 32768)"
+    echo "  -p, --port <port>    Set server port (alternative to positional port)"
+    echo ""
     echo "Examples:"
-    echo "  $0 qwen3-235b        Start Qwen3-235B on port 8081"
-    echo "  $0 qwen2.5-7b 8082   Start Qwen2.5-7B on port 8082"
-    echo "  $0 stop              Stop all servers"
-    echo "  $0 status            Check what's running"
+    echo "  $0 qwen3-235b                    Start Qwen3-235B on port 8081"
+    echo "  $0 qwen2.5-7b 8082               Start Qwen2.5-7B on port 8082"
+    echo "  $0 qwen3-235b -c 16384           Start with 16K context window"
+    echo "  $0 qwen3-235b -c 32768 -p 8082   Start with 32K context on port 8082"
+    echo "  $0 stop                          Stop all servers"
+    echo "  $0 status                        Check what's running"
     echo ""
     echo "Environment Variables:"
     echo "  MODELS_DIR           Models directory (default: ./models)"
@@ -756,19 +804,46 @@ show_help() {
 
 main() {
     local command="${1:-help}"
+    local port=""
+    local ctx=""
+    local model_name=""
+
+    # Parse arguments
+    shift || true
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -c|--ctx)
+                ctx="$2"
+                shift 2
+                ;;
+            -p|--port)
+                port="$2"
+                shift 2
+                ;;
+            *)
+                # First positional arg after command
+                if [[ -z "$port" && "$1" =~ ^[0-9]+$ && "$1" -gt 1024 ]]; then
+                    port="$1"
+                else
+                    model_name="$1"
+                fi
+                shift
+                ;;
+        esac
+    done
 
     case "$command" in
         run)
             # Foreground mode for systemd
-            if [[ -z "$2" ]]; then
+            if [[ -z "$model_name" ]]; then
                 echo "ERROR: Please specify a model name" >&2
                 exit 1
             fi
-            run_model_foreground "$2" "${3:-$DEFAULT_PORT}"
+            run_model_foreground "$model_name" "${port:-$DEFAULT_PORT}" "$ctx"
             ;;
         stop)
-            if [[ -n "$2" ]]; then
-                stop_model "$2"
+            if [[ -n "$model_name" ]]; then
+                stop_model "$model_name"
             else
                 stop_all
             fi
@@ -780,21 +855,22 @@ main() {
             list_models
             ;;
         logs)
-            if [[ -z "$2" ]]; then
+            if [[ -z "$model_name" ]]; then
                 print_error "Please specify a model name"
                 exit 1
             fi
-            show_logs "$2"
+            show_logs "$model_name"
             ;;
         help|--help|-h)
             show_help
             ;;
         *)
-            # Assume it's a model name
-            if [[ -n "${MODELS[$command]}" ]]; then
-                start_model "$command" "${2:-$DEFAULT_PORT}"
+            # Assume command is actually the model name
+            model_name="$command"
+            if [[ -n "${MODELS[$model_name]}" ]]; then
+                start_model "$model_name" "${port:-$DEFAULT_PORT}" "$ctx"
             else
-                print_error "Unknown command or model: $command"
+                print_error "Unknown command or model: $model_name"
                 echo ""
                 show_help
                 exit 1

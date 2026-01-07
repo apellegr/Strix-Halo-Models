@@ -18,6 +18,17 @@
         "date": "2026-01-06"
       },
       "notes": "Optimal for 128GB unified memory. Higher GPU layers cause OOM."
+    },
+    "deepseek-coder-v2-16b": {
+      "gpu_layers": 80,
+      "ctx_size": 4096,
+      "batch_size": 512,
+      "benchmark": {
+        "pp_tokens_per_sec": 1164.224139,
+        "tg_tokens_per_sec": 63.227008,
+        "memory_gb": 17,
+        "date": "2026-01-07"
+      }
     }
   }
 }
