@@ -69,11 +69,17 @@ Strix-Halo-Models/
 │   ├── vision/                # Multimodal models
 │   ├── specialized/           # Task-specific models
 │   └── massive/               # 100B+ models
+├── claude-code-router/        # Claude Code local LLM integration
+│   ├── config.json            # Router configuration
+│   ├── install.sh             # Router installation script
+│   └── README.md              # Setup documentation
 ├── benchmarks/                # Benchmark results
 ├── start-llm-server.sh        # Server management script
+├── start-claude-code-models.sh # Start models for Claude Code
 ├── benchmark-model.sh         # Benchmarking tool
 ├── benchmark-all-models.sh    # Batch benchmark script
 ├── model-configs.json         # Optimized configurations
+├── gpu-power-config.sh        # GPU power profile configuration
 ├── .env                       # Environment configuration
 └── install-llama-cpp.sh       # llama.cpp installer
 ```
@@ -236,14 +242,24 @@ Optimized settings are stored in JSON format:
 ```json
 {
   "models": {
-    "qwen3-235b-thinking": {
+    "llama-3.2-3b": {
       "gpu_layers": 50,
-      "ctx_size": 4096,
-      "batch_size": 512,
+      "ctx_size": 8192,
+      "batch_size": 1024,
       "benchmark": {
-        "pp_tokens_per_sec": 129.25,
-        "tg_tokens_per_sec": 8.33,
-        "memory_gb": 51
+        "pp_tokens_per_sec": 2154.12,
+        "tg_tokens_per_sec": 68.76,
+        "memory_gb": 8
+      }
+    },
+    "qwen2.5-coder-32b": {
+      "gpu_layers": 80,
+      "ctx_size": 32768,
+      "batch_size": 1024,
+      "benchmark": {
+        "pp_tokens_per_sec": 316.83,
+        "tg_tokens_per_sec": 10.52,
+        "memory_gb": 24
       }
     }
   }
@@ -561,9 +577,108 @@ curl http://localhost:8081/health
 
 ---
 
+## Claude Code Integration
+
+Run Claude Code with local LLM models using the Claude Code Router.
+
+### Quick Setup
+
+```bash
+# 1. Install the router
+./claude-code-router/install.sh
+
+# 2. Start models and router
+./start-claude-code-models.sh all
+
+# 3. Use Claude Code with local models
+export ANTHROPIC_BASE_URL=http://localhost:3456
+claude
+```
+
+### Model Configuration
+
+The router maps different Claude Code task types to specialized local models:
+
+| Task Type | Model | Port | Speed |
+|-----------|-------|------|-------|
+| Background (titles, topics) | llama-3.2-3b | 8081 | 68.8 tok/s |
+| Default (main coding) | qwen2.5-coder-32b | 8082 | 10.5 tok/s |
+| Think (reasoning) | deepseek-r1-32b | 8083 | 10.5 tok/s |
+
+### Management Commands
+
+```bash
+# Start all Claude Code models
+./start-claude-code-models.sh
+
+# Start models and router
+./start-claude-code-models.sh all
+
+# Check status
+./start-claude-code-models.sh status
+
+# Stop all
+./start-claude-code-models.sh stop
+```
+
+See [claude-code-router/README.md](claude-code-router/README.md) for detailed setup instructions.
+
+---
+
+## GPU Power Configuration
+
+Optimize GPU performance with power profile settings:
+
+```bash
+# Check current power profile
+cat /sys/class/drm/card*/device/power_dpm_force_performance_level
+
+# Set to high performance (requires root)
+sudo ./gpu-power-config.sh performance
+
+# Available profiles: auto, low, high, performance
+```
+
+For persistent settings, see `gpu-power-config.sh`.
+
+---
+
+## Server Optimizations
+
+The server scripts include several performance optimizations:
+
+### Flash Attention
+Enabled by default for faster attention computation:
+```bash
+--flash-attn on
+```
+
+### Parallel Slots
+Controls concurrent request handling. Default is 1 for dedicated processing:
+```bash
+--parallel 1  # Single slot (faster individual requests)
+--parallel 4  # Multiple slots (better throughput)
+```
+
+### Batch Size
+Larger batch size improves prompt processing speed:
+```bash
+--batch-size 1024  # Default (increased from 512)
+```
+
+### Custom Context Size
+Override context size per model:
+```bash
+./start-llm-server.sh qwen2.5-coder-32b -c 32768
+./start-llm-server.sh llama-3.2-3b -c 8192
+```
+
+---
+
 ## Resources
 
 - [MODELS.md](MODELS.md) - Detailed model information and performance expectations
+- [claude-code-router/README.md](claude-code-router/README.md) - Claude Code local LLM setup
 - [llama.cpp](https://github.com/ggerganov/llama.cpp) - Inference engine
 - [Strix Halo Homelab Wiki](https://strixhalo-homelab.d7.wtf/) - Community resources
 - [Open WebUI](https://github.com/open-webui/open-webui) - Web interface

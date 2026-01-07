@@ -35,12 +35,24 @@ MODELS_DIR=/mnt/nvme/models ./download_strix_halo_models.sh
 
 ## Model Performance Expectations
 
-Based on community benchmarks with llama.cpp on Strix Halo:
+Based on benchmarks with llama.cpp on Strix Halo (AMD Ryzen AI Max+ 395):
 
-### Fast Tier (7-8B models) - 20-50+ tok/s
+### Measured Benchmarks (January 2026)
+
+These results are from actual benchmarks using `./benchmark-model.sh --optimize`:
+
+| Model | GPU Layers | Prompt (tok/s) | Generation (tok/s) | Memory |
+|-------|------------|----------------|-------------------|--------|
+| **llama-3.2-3b** | 50 | 2,154 | **68.8** | ~8GB |
+| **deepseek-coder-v2-16b** | 80 | 1,164 | **63.2** | ~17GB |
+| **qwen2.5-coder-32b** | 80 | 317 | **10.5** | ~24GB |
+| **deepseek-r1-32b** | 80 | 316 | **10.5** | ~24GB |
+| **qwen3-235b-thinking** | 50 | 129 | **8.3** | ~51GB |
+
+### Fast Tier (3-9B models) - 50-70+ tok/s
 | Model | Quant | Size | Tokens/sec |
 |-------|-------|------|------------|
-| Llama 3.2 3B | Q6_K | ~3GB | 50-80 |
+| Llama 3.2 3B | Q6_K | ~3GB | **68.8** (measured) |
 | Mistral 7B | Q5_K_M | ~5GB | 30-45 |
 | Qwen 2.5 7B | Q5_K_M | ~5GB | 30-40 |
 | Gemma 2 9B | Q5_K_M | ~7GB | 25-35 |
@@ -48,10 +60,11 @@ Based on community benchmarks with llama.cpp on Strix Halo:
 ### Balanced Tier (14-32B models) - 10-25 tok/s
 | Model | Quant | Size | Tokens/sec |
 |-------|-------|------|------------|
+| DeepSeek Coder V2 16B | Q5_K_M | ~12GB | **63.2** (measured, MoE) |
 | Qwen 2.5 14B | Q5_K_M | ~10GB | 18-25 |
 | Gemma 2 27B | Q4_K_M | ~17GB | 12-18 |
-| Qwen 2.5 32B | Q4_K_M | ~20GB | 10-15 |
-| DeepSeek R1 32B | Q4_K_M | ~20GB | 10-15 |
+| Qwen 2.5 Coder 32B | Q4_K_M | ~19GB | **10.5** (measured) |
+| DeepSeek R1 32B | Q4_K_M | ~19GB | **10.5** (measured) |
 
 ### Large Tier (70B models) - 3-15 tok/s
 | Model | Quant | Size | Tokens/sec |
@@ -59,14 +72,15 @@ Based on community benchmarks with llama.cpp on Strix Halo:
 | Llama 3.3 70B | Q4_K_M | ~42GB | 8-12 |
 | Qwen 2.5 72B | Q4_K_M | ~43GB | 7-10 |
 | DeepSeek R1 70B | Q4_K_M | ~42GB | 7-10 |
-| Llama 3.3 70B | Q8_0 | ~75GB | 4-6 |
+| CodeLlama 70B | Q4_K_M | ~39GB | 7-10 |
 
-### Massive Tier (100B+) - 1-5 tok/s
+### Massive Tier (100B+) - 1-10 tok/s
 | Model | Quant | Size | Tokens/sec |
 |-------|-------|------|------------|
-| Qwen 3 235B | Q3_K | ~97GB | 2-4 |
-| Mistral Large 123B | Q3_K | ~60GB | 3-5 |
-| Command R+ 104B | Q3_K | ~50GB | 4-6 |
+| Qwen 3 235B Thinking | Q3_K | ~107GB | **8.3** (measured) |
+| Qwen 3 235B | Q3_K_XL | ~98GB | 2-4 |
+| Mistral Large 123B | Q3_K_L | ~61GB | 3-5 |
+| Command R+ 104B | Q3_K_M | ~49GB | 4-6 |
 
 ## Recommended Software Stack
 
@@ -128,23 +142,38 @@ rocWMMA significantly improves matrix operations. Many pre-built containers incl
 
 ## Model Selection Guide
 
+### For Claude Code (Local LLM)
+
+Recommended multi-model setup for running Claude Code with local models:
+
+| Role | Model | Why |
+|------|-------|-----|
+| **Background** | llama-3.2-3b | Fast (68.8 tok/s), handles simple tasks like titles |
+| **Default** | qwen2.5-coder-32b | Excellent coding ability, good context handling |
+| **Reasoning** | deepseek-r1-32b | Strong reasoning, R1 architecture |
+
+**Total memory: ~56GB** (leaves room for system + context)
+
+Setup instructions: See [claude-code-router/README.md](claude-code-router/README.md)
+
 ### For General Chat
 1. **Quick responses**: Qwen 2.5 7B or Llama 3.1 8B
 2. **Best quality**: Llama 3.3 70B or Qwen 2.5 72B
 3. **Balance**: Qwen 2.5 32B
 
 ### For Coding
-1. **Fast**: Qwen 2.5 Coder 7B
-2. **Best**: Qwen 2.5 Coder 32B
+1. **Fast**: DeepSeek Coder V2 16B (63.2 tok/s, MoE architecture)
+2. **Best**: Qwen 2.5 Coder 32B (10.5 tok/s, excellent quality)
 3. **Large context**: CodeLlama 70B
 
 ### For Reasoning/Math
-1. DeepSeek R1 Distill 32B (best quality/speed)
-2. DeepSeek R1 Distill 70B (maximum capability)
+1. DeepSeek R1 Distill 32B (best quality/speed, 10.5 tok/s)
+2. Qwen 3 235B Thinking (maximum capability, 8.3 tok/s)
+3. DeepSeek R1 Distill 70B (balance)
 
 ### For Vision Tasks
 1. LLaVA 1.6 7B (fast)
-2. Gemma 3 27B (quality)
+2. Qwen 2.5 VL 7B (good quality)
 3. Pixtral 12B (balance)
 
 ### For RAG/Tool Use
