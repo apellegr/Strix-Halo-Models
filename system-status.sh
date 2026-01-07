@@ -18,6 +18,19 @@ WATCH_MODE=false
 INTERVAL=1
 SHOW_HELP=false
 
+# State directory for tracking metrics between refreshes (persistent across runs)
+STATE_DIR="/tmp/system-status-metrics"
+mkdir -p "$STATE_DIR"
+
+# Cleanup old state files on exit (only in non-watch mode)
+cleanup() {
+    if ! $WATCH_MODE; then
+        # Keep state files for 60 seconds to allow rapid re-runs
+        find "$STATE_DIR" -type f -mmin +1 -delete 2>/dev/null || true
+    fi
+}
+trap cleanup EXIT
+
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -101,6 +114,54 @@ get_model_metrics() {
     echo "${prompt_tokens:-0}|${gen_tokens:-0}|${prompt_seconds:-0}|${gen_seconds:-0}"
 }
 
+# Function to calculate instantaneous tok/s using delta from previous reading
+# Returns: in_tps|out_tps (instantaneous tokens per second)
+get_instantaneous_tps() {
+    local model=$1
+    local prompt_tok=$2
+    local gen_tok=$3
+    local current_time=$(date +%s.%N)
+
+    local state_file="$STATE_DIR/${model}.state"
+
+    # Default to N/A if no previous state
+    local in_tps="--"
+    local out_tps="--"
+
+    if [[ -f "$state_file" ]]; then
+        # Read previous state
+        IFS='|' read -r prev_prompt prev_gen prev_time < "$state_file"
+
+        # Calculate time delta
+        local time_delta=$(awk "BEGIN {printf \"%.3f\", $current_time - $prev_time}")
+
+        # Only calculate if we have a meaningful time delta (> 0.1s)
+        if (( $(awk "BEGIN {print ($time_delta > 0.1) ? 1 : 0}") )); then
+            # Calculate token deltas
+            local prompt_delta=$(awk "BEGIN {print $prompt_tok - $prev_prompt}")
+            local gen_delta=$(awk "BEGIN {print $gen_tok - $prev_gen}")
+
+            # Calculate instantaneous tok/s
+            if (( $(awk "BEGIN {print ($prompt_delta > 0) ? 1 : 0}") )); then
+                in_tps=$(awk "BEGIN {printf \"%.1f\", $prompt_delta / $time_delta}")
+            else
+                in_tps="0.0"
+            fi
+
+            if (( $(awk "BEGIN {print ($gen_delta > 0) ? 1 : 0}") )); then
+                out_tps=$(awk "BEGIN {printf \"%.1f\", $gen_delta / $time_delta}")
+            else
+                out_tps="0.0"
+            fi
+        fi
+    fi
+
+    # Save current state for next iteration
+    echo "$prompt_tok|$gen_tok|$current_time" > "$state_file"
+
+    echo "$in_tps|$out_tps"
+}
+
 # Function to format large numbers with K/M suffix
 format_number() {
     local num=$1
@@ -142,6 +203,49 @@ progress_bar() {
     for ((i=0; i<empty; i++)); do bar+="$empty_char"; done
 
     echo "$bar"
+}
+
+# Function to get CPU utilization percentage
+# Uses /proc/stat to calculate CPU usage with a brief sample interval
+get_cpu_utilization() {
+    # Read first sample
+    local cpu_line1=$(head -1 /proc/stat)
+    local user1=$(echo "$cpu_line1" | awk '{print $2}')
+    local nice1=$(echo "$cpu_line1" | awk '{print $3}')
+    local system1=$(echo "$cpu_line1" | awk '{print $4}')
+    local idle1=$(echo "$cpu_line1" | awk '{print $5}')
+    local iowait1=$(echo "$cpu_line1" | awk '{print $6}')
+    local irq1=$(echo "$cpu_line1" | awk '{print $7}')
+    local softirq1=$(echo "$cpu_line1" | awk '{print $8}')
+
+    # Brief delay for sampling
+    sleep 0.1
+
+    # Read second sample
+    local cpu_line2=$(head -1 /proc/stat)
+    local user2=$(echo "$cpu_line2" | awk '{print $2}')
+    local nice2=$(echo "$cpu_line2" | awk '{print $3}')
+    local system2=$(echo "$cpu_line2" | awk '{print $4}')
+    local idle2=$(echo "$cpu_line2" | awk '{print $5}')
+    local iowait2=$(echo "$cpu_line2" | awk '{print $6}')
+    local irq2=$(echo "$cpu_line2" | awk '{print $7}')
+    local softirq2=$(echo "$cpu_line2" | awk '{print $8}')
+
+    local total1=$((user1 + nice1 + system1 + idle1 + iowait1 + irq1 + softirq1))
+    local total2=$((user2 + nice2 + system2 + idle2 + iowait2 + irq2 + softirq2))
+    local busy1=$((user1 + nice1 + system1 + irq1 + softirq1))
+    local busy2=$((user2 + nice2 + system2 + irq2 + softirq2))
+
+    # Calculate delta
+    local diff_total=$((total2 - total1))
+    local diff_busy=$((busy2 - busy1))
+
+    # Calculate percentage (avoid division by zero)
+    if [[ $diff_total -gt 0 ]]; then
+        echo $((diff_busy * 100 / diff_total))
+    else
+        echo "0"
+    fi
 }
 
 # Function to display status
@@ -213,11 +317,24 @@ display_status() {
         fi
     done
     local cpu_freq=$((cpu_freq_sum / cpu_count / 1000))
-    local cpu_temp_mc=$(cat /sys/class/hwmon/hwmon3/temp1_input 2>/dev/null)
+    local cpu_temp_mc=$(cat /sys/class/hwmon/hwmon3/temp1_input 2>/dev/null || echo "0")
     local cpu_temp=$(awk "BEGIN {printf \"%.1f\", $cpu_temp_mc / 1000}")
+
+    # Get CPU utilization
+    local cpu_util=$(get_cpu_utilization)
+    local cpu_bar=$(progress_bar "$cpu_util" 20)
+    local cpu_util_color=$GREEN
+    if [[ "$cpu_util" -ge 80 ]]; then
+        cpu_util_color=$RED
+    elif [[ "$cpu_util" -ge 50 ]]; then
+        cpu_util_color=$YELLOW
+    fi
 
     echo -e "${BLUE}${BOLD}┌─ CPU (Ryzen AI MAX+ 395) ────────────────────────────────────────┐${NC}"
     printf "${BLUE}│${NC} %-20s ${GREEN}%-15s${NC} %-20s ${GREEN}%-10s${NC} ${BLUE}│${NC}\n" "Governor:" "$cpu_gov" "Avg Frequency:" "${cpu_freq}MHz"
+
+    # CPU Utilization with visual bar
+    printf "${BLUE}│${NC} %-20s ${cpu_util_color}%-6s${NC} ${cpu_util_color}%s${NC} %-22s ${BLUE}│${NC}\n" "CPU Utilization:" "${cpu_util}%" "$cpu_bar" ""
 
     # Color temperature based on value
     temp_color=$GREEN
@@ -269,7 +386,7 @@ display_status() {
     # Token Statistics Section (only if models are running)
     if [[ $model_count -gt 0 ]]; then
         echo -e "${CYAN}${BOLD}┌─ Token Statistics ────────────────────────────────────────────────┐${NC}"
-        printf "${CYAN}│${NC} ${BOLD}%-20s %-10s %-10s %-10s %-10s${NC} ${CYAN}│${NC}\n" "Model" "In Tokens" "Out Tokens" "In tok/s" "Out tok/s"
+        printf "${CYAN}│${NC} ${BOLD}%-18s %-9s %-9s %-11s %-11s${NC} ${CYAN}│${NC}\n" "Model" "In Tok" "Out Tok" "In tok/s" "Out tok/s"
         echo -e "${CYAN}│${NC} ─────────────────────────────────────────────────────────────────── ${CYAN}│${NC}"
 
         local has_metrics=false
@@ -279,24 +396,27 @@ display_status() {
 
                 if [[ "$prompt_tok" != "N/A" ]]; then
                     has_metrics=true
-                    # Calculate tokens per second
-                    local in_tps="N/A"
-                    local out_tps="N/A"
 
-                    if [[ -n "$prompt_sec" ]] && [[ "$prompt_sec" != "0" ]] && [[ "$prompt_tok" != "0" ]]; then
-                        in_tps=$(awk "BEGIN {printf \"%.1f\", $prompt_tok / $prompt_sec}")
-                    fi
-                    if [[ -n "$gen_sec" ]] && [[ "$gen_sec" != "0" ]] && [[ "$gen_tok" != "0" ]]; then
-                        out_tps=$(awk "BEGIN {printf \"%.1f\", $gen_tok / $gen_sec}")
-                    fi
+                    # Get instantaneous tok/s (delta-based)
+                    IFS='|' read -r in_tps out_tps <<< "$(get_instantaneous_tps "$model" "$prompt_tok" "$gen_tok")"
 
                     # Format token counts
                     local fmt_prompt=$(format_number "$prompt_tok")
                     local fmt_gen=$(format_number "$gen_tok")
 
-                    printf "${CYAN}│${NC} %-20s %-10s %-10s %-10s %-10s ${CYAN}│${NC}\n" "$model" "$fmt_prompt" "$fmt_gen" "$in_tps" "$out_tps"
+                    # Color the tok/s based on activity
+                    local in_color=$NC
+                    local out_color=$NC
+                    if [[ "$in_tps" != "--" ]] && [[ "$in_tps" != "0.0" ]]; then
+                        in_color=$GREEN
+                    fi
+                    if [[ "$out_tps" != "--" ]] && [[ "$out_tps" != "0.0" ]]; then
+                        out_color=$GREEN
+                    fi
+
+                    printf "${CYAN}│${NC} %-18s %-9s %-9s ${in_color}%-11s${NC} ${out_color}%-11s${NC} ${CYAN}│${NC}\n" "$model" "$fmt_prompt" "$fmt_gen" "$in_tps" "$out_tps"
                 else
-                    printf "${CYAN}│${NC} %-20s ${YELLOW}%-51s${NC} ${CYAN}│${NC}\n" "$model" "(metrics not enabled - restart with --metrics)"
+                    printf "${CYAN}│${NC} %-18s ${YELLOW}%-51s${NC} ${CYAN}│${NC}\n" "$model" "(metrics not enabled - restart with --metrics)"
                 fi
             fi
         done <<< "$models_data"
