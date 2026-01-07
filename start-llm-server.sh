@@ -56,49 +56,96 @@ setup_gpu_environment() {
 }
 
 #===============================================================================
-# Model Configurations
+# Model Discovery
+# Dynamically finds models in the models/ directory
 # Format: model_path|gpu_layers|ctx_size|extra_args
 #===============================================================================
 
 declare -A MODELS
 
-# Massive models (60 GPU layers for hybrid mode)
-MODELS["qwen3-235b"]="$MODELS_DIR/massive/qwen3-235b/UD-Q3_K_XL/Qwen3-235B-A22B-Instruct-2507-UD-Q3_K_XL-00001-of-00003.gguf|60|4096|"
-MODELS["qwen3-235b-thinking"]="$MODELS_DIR/massive/qwen3-235b-thinking/Q3_K_M/Qwen3-235B-A22B-Thinking-2507-Q3_K_M-00001-of-00003.gguf|50|4096|"
-MODELS["mistral-large-123b"]="$MODELS_DIR/massive/mistral-large-123b/Mistral-Large-Instruct-2407-Q3_K_L/Mistral-Large-Instruct-2407-Q3_K_L-00001-of-00002.gguf|60|4096|"
-MODELS["llama-4-scout"]="$MODELS_DIR/massive/llama-4-scout/Q4_K_M/Llama-4-Scout-17B-16E-Instruct-Q4_K_M-00001-of-00002.gguf|999|8192|"
+# Get default GPU layers based on model file size
+get_default_gpu_layers() {
+    local model_path="$1"
+    local size_gb=0
 
-# Large models (full GPU offload)
-MODELS["codellama-70b"]="$MODELS_DIR/coding/codellama-70b/codellama-70b-instruct.Q4_K_M.gguf|999|4096|"
-MODELS["command-r-plus"]="$MODELS_DIR/specialized/command-r-plus/c4ai-command-r-plus-08-2024-Q3_K_M/c4ai-command-r-plus-08-2024-Q3_K_M-00001-of-00002.gguf|60|4096|"
+    # Calculate total size for multi-part models
+    local base_path="${model_path%-00001-of-*.gguf}"
+    if [[ "$base_path" != "$model_path" ]]; then
+        # Multi-part model - sum all parts
+        size_gb=$(du -BG "${base_path}"*.gguf 2>/dev/null | awk '{sum+=$1} END {print sum}' | tr -d 'G')
+    else
+        size_gb=$(du -BG "$model_path" 2>/dev/null | awk '{print $1}' | tr -d 'G')
+    fi
 
-# Balanced models (full GPU offload)
-MODELS["qwen2.5-32b"]="$MODELS_DIR/balanced/qwen2.5-32b/Qwen2.5-32B-Instruct-Q4_K_M.gguf|999|8192|"
-MODELS["deepseek-r1-32b"]="$MODELS_DIR/balanced/deepseek-r1-32b/DeepSeek-R1-Distill-Qwen-32B-Q4_K_M.gguf|999|8192|"
-MODELS["gemma-2-27b"]="$MODELS_DIR/balanced/gemma-2-27b/gemma-2-27b-it-Q4_K_M.gguf|999|8192|"
-MODELS["mistral-small-24b"]="$MODELS_DIR/balanced/mistral-small-24b/Mistral-Small-24B-Instruct-2501-Q4_K_M.gguf|999|8192|"
-MODELS["qwen2.5-14b"]="$MODELS_DIR/balanced/qwen2.5-14b/Qwen2.5-14B-Instruct-Q5_K_M.gguf|999|16384|"
+    # Determine GPU layers based on size
+    # >80GB: 50 layers (very large, needs hybrid)
+    # 40-80GB: 60 layers (large, hybrid mode)
+    # <40GB: 999 (full GPU offload)
+    if [[ "$size_gb" -gt 80 ]]; then
+        echo "50"
+    elif [[ "$size_gb" -gt 40 ]]; then
+        echo "60"
+    else
+        echo "999"
+    fi
+}
 
-# Coding models
-MODELS["qwen2.5-coder-32b"]="$MODELS_DIR/coding/qwen2.5-coder-32b/Qwen2.5-Coder-32B-Instruct-Q4_K_M.gguf|999|16384|"
-MODELS["qwen2.5-coder-7b"]="$MODELS_DIR/coding/qwen2.5-coder-7b/Qwen2.5-Coder-7B-Instruct-Q5_K_M.gguf|999|32768|"
-MODELS["deepseek-coder-v2-16b"]="$MODELS_DIR/coding/deepseek-coder-v2-16b/DeepSeek-Coder-V2-Lite-Instruct-Q5_K_M.gguf|999|16384|"
+# Get default context size based on model size
+get_default_ctx_size() {
+    local model_path="$1"
+    local size_gb=$(du -BG "$model_path" 2>/dev/null | awk '{print $1}' | tr -d 'G')
 
-# Fast models (full GPU offload, larger context)
-MODELS["qwen2.5-7b"]="$MODELS_DIR/fast/qwen2.5-7b/Qwen2.5-7B-Instruct-Q5_K_M.gguf|999|32768|"
-MODELS["llama-3.1-8b"]="$MODELS_DIR/fast/llama-3.1-8b/Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf|999|32768|"
-MODELS["gemma-2-9b"]="$MODELS_DIR/fast/gemma-2-9b/gemma-2-9b-it-Q5_K_M.gguf|999|16384|"
-MODELS["mistral-7b"]="$MODELS_DIR/fast/mistral-7b/Mistral-7B-Instruct-v0.3-Q5_K_M.gguf|999|32768|"
-MODELS["llama-3.2-3b"]="$MODELS_DIR/fast/llama-3.2-3b/Llama-3.2-3B-Instruct-Q6_K_L.gguf|999|65536|"
+    # Larger models get smaller context to save memory
+    # >50GB: 4096
+    # 20-50GB: 8192
+    # 10-20GB: 16384
+    # <10GB: 32768
+    if [[ "$size_gb" -gt 50 ]]; then
+        echo "4096"
+    elif [[ "$size_gb" -gt 20 ]]; then
+        echo "8192"
+    elif [[ "$size_gb" -gt 10 ]]; then
+        echo "16384"
+    else
+        echo "32768"
+    fi
+}
 
-# Specialized models
-MODELS["phi-4"]="$MODELS_DIR/specialized/phi-4/phi-4-Q5_K_M.gguf|999|16384|"
-MODELS["solar-10.7b"]="$MODELS_DIR/specialized/solar-10.7b/solar-10.7b-instruct-v1.0.Q5_K_M.gguf|999|16384|"
+# Discover all models in the models directory
+discover_models() {
+    [[ ! -d "$MODELS_DIR" ]] && return
 
-# Vision models
-MODELS["qwen2.5-vl-7b"]="$MODELS_DIR/vision/qwen2.5-vl-7b/Qwen2.5-VL-7B-Instruct-Q5_K_M.gguf|999|8192|"
-MODELS["pixtral-12b"]="$MODELS_DIR/vision/pixtral-12b/mistral-community_pixtral-12b-Q4_K_M.gguf|999|8192|"
-MODELS["llava-1.6-7b"]="$MODELS_DIR/vision/llava-1.6-7b/llava-v1.6-mistral-7b.Q5_K_M.gguf|999|8192|"
+    # Find all .gguf files, excluding mmproj files (vision adapters)
+    while IFS= read -r gguf_file; do
+        # Skip mmproj files (vision model projectors)
+        [[ "$gguf_file" == *"mmproj"* ]] && continue
+
+        # Get the model directory path relative to MODELS_DIR
+        local rel_path="${gguf_file#$MODELS_DIR/}"
+        local category=$(echo "$rel_path" | cut -d'/' -f1)
+        local model_name=$(echo "$rel_path" | cut -d'/' -f2)
+
+        # Skip if we already have this model (handles multi-part models)
+        [[ -n "${MODELS[$model_name]}" ]] && continue
+
+        # For multi-part models, only use the first part
+        if [[ "$gguf_file" == *"-of-"* ]]; then
+            # Skip if not the first part
+            [[ "$gguf_file" != *"-00001-of-"* ]] && continue
+        fi
+
+        # Get default settings based on model size
+        local gpu_layers=$(get_default_gpu_layers "$gguf_file")
+        local ctx_size=$(get_default_ctx_size "$gguf_file")
+
+        # Register the model
+        MODELS["$model_name"]="$gguf_file|$gpu_layers|$ctx_size|"
+
+    done < <(find "$MODELS_DIR" -name "*.gguf" -type f 2>/dev/null | sort)
+}
+
+# Initialize models
+discover_models
 
 #===============================================================================
 # Colors
