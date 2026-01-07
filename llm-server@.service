@@ -1,0 +1,41 @@
+[Unit]
+Description=LLM Server - %i model (llama.cpp)
+Documentation=https://github.com/ggerganov/llama.cpp
+After=network.target
+
+[Service]
+Type=simple
+
+# IMPORTANT: Update this path to your Strix-Halo-Models directory
+WorkingDirectory=%h/Strix-Halo-Models
+
+# Environment for ROCm/GPU unified memory
+Environment="PATH=%h/.local/bin:/opt/rocm/bin:/usr/local/bin:/usr/bin"
+Environment="LD_LIBRARY_PATH=%h/.local/lib:/opt/rocm/lib"
+Environment="HSA_ENABLE_SDMA=0"
+Environment="GPU_MAX_HEAP_SIZE=100"
+Environment="GPU_MAX_ALLOC_PERCENT=100"
+Environment="GPU_SINGLE_ALLOC_PERCENT=100"
+Environment="GPU_FORCE_64BIT_PTR=1"
+Environment="HIP_VISIBLE_DEVICES=0"
+Environment="HSA_OVERRIDE_GFX_VERSION=11.5.1"
+
+# Run in foreground mode for systemd
+ExecStart=%h/Strix-Halo-Models/start-llm-server.sh run %i
+ExecStop=%h/Strix-Halo-Models/start-llm-server.sh stop %i
+
+# Restart on failure
+Restart=on-failure
+RestartSec=30
+
+# Give time for large models to load
+TimeoutStartSec=600
+TimeoutStopSec=60
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=llm-server-%i
+
+[Install]
+WantedBy=default.target
