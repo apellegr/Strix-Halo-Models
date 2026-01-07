@@ -357,12 +357,12 @@ display_status() {
 # Main
 if $WATCH_MODE; then
     tput civis
-    clear
     trap 'tput cnorm; echo -e "\n${GREEN}Exiting...${NC}"; exit 0' INT TERM
     while true; do
-        tput cup 0 0
-        display_status
-        tput ed
+        # Buffer output to prevent display artifacts during refresh
+        output=$(display_status)
+        clear
+        echo -e "$output"
         sleep "$INTERVAL"
     done
 else
