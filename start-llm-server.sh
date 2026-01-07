@@ -222,6 +222,116 @@ get_model_port() {
     fi
 }
 
+#===============================================================================
+# Memory Management
+#===============================================================================
+
+# Total system memory in GB
+TOTAL_MEMORY_GB=$(awk '/MemTotal/ {printf "%.0f", $2/1024/1024}' /proc/meminfo)
+
+# Get memory used by all running llama-server processes (in GB)
+get_used_llm_memory() {
+    local total_rss=0
+    while read -r rss; do
+        total_rss=$((total_rss + rss))
+    done < <(pgrep -f "llama-server" | xargs -I{} ps -o rss= -p {} 2>/dev/null)
+    echo $((total_rss / 1024 / 1024))
+}
+
+# Estimate memory needed for a model (in GB)
+# Based on model file size + context overhead + compute buffers
+# Conservative estimates for unified memory APU (Strix Halo)
+estimate_model_memory() {
+    local model_path="$1"
+    local ctx_size="${2:-4096}"
+    local model_size_gb=0
+
+    # Calculate total size for multi-part models
+    local base_path="${model_path%-00001-of-*.gguf}"
+    if [[ "$base_path" != "$model_path" ]]; then
+        model_size_gb=$(du -BG "${base_path}"*.gguf 2>/dev/null | awk '{sum+=$1} END {print sum}' | tr -d 'G')
+    else
+        model_size_gb=$(du -BG "$model_path" 2>/dev/null | awk '{print $1}' | tr -d 'G')
+    fi
+
+    # Estimate KV cache overhead based on context size and model size
+    # Large context = large KV cache, especially for bigger models
+    local ctx_overhead_gb=0
+    if [[ "$ctx_size" -gt 16384 ]]; then
+        # Large context: ~2-4GB per 8K context
+        ctx_overhead_gb=$((ctx_size * 4 / 8192))
+    elif [[ "$ctx_size" -gt 8192 ]]; then
+        ctx_overhead_gb=$((ctx_size * 2 / 8192))
+    else
+        ctx_overhead_gb=$((ctx_size / 4096))
+    fi
+
+    # Add compute buffer overhead (significant for GPU offload)
+    # Roughly 1GB per 10GB of model for compute graphs
+    local compute_overhead=$((model_size_gb / 10 + 2))
+
+    # Total with 20% safety margin for memory fragmentation
+    local total=$((model_size_gb + ctx_overhead_gb + compute_overhead))
+    total=$((total * 120 / 100))
+
+    echo "$total"
+}
+
+# Check if there's enough memory to load a model
+check_memory_available() {
+    local model_path="$1"
+    local ctx_size="$2"
+    local model_name="$3"
+
+    local used_gb=$(get_used_llm_memory)
+    local needed_gb=$(estimate_model_memory "$model_path" "$ctx_size")
+    local available_gb=$((TOTAL_MEMORY_GB - used_gb))
+
+    # Leave 10GB buffer for system
+    local safe_available=$((available_gb - 10))
+
+    # Check for concurrent GPU-heavy models (unified memory limitation)
+    if [[ $used_gb -gt 10 ]]; then
+        # Another model is using significant memory
+        local running_models=$(pgrep -c -f "llama-server" 2>/dev/null || echo 0)
+        if [[ $running_models -gt 0 ]]; then
+            echo ""
+            print_warning "Concurrent Model Warning"
+            echo "  Another model is already running using ~${used_gb}GB"
+            echo "  Running multiple GPU-accelerated models simultaneously"
+            echo "  may cause memory allocation failures on unified memory APUs."
+            echo ""
+            echo "  If this model fails to load, try:"
+            echo "    - Stop other models first: ./start-llm-server.sh stop"
+            echo "    - Use smaller context: reduces KV cache memory"
+            echo "    - Use fewer GPU layers: offload to CPU instead"
+            echo ""
+        fi
+    fi
+
+    if [[ $needed_gb -gt $safe_available ]]; then
+        echo ""
+        print_warning "Memory Warning for $model_name"
+        echo "  Estimated memory needed: ~${needed_gb}GB"
+        echo "  Currently used by LLMs:  ~${used_gb}GB"
+        echo "  Available (with buffer): ~${safe_available}GB"
+        echo "  Total system memory:     ${TOTAL_MEMORY_GB}GB"
+        echo ""
+
+        if [[ $needed_gb -gt $available_gb ]]; then
+            print_error "Likely insufficient memory! Model may fail to load."
+            echo "  Consider: stopping other models, reducing context, or using fewer GPU layers"
+            echo ""
+            return 1
+        else
+            print_warning "Memory is tight. Model may load slowly or fail."
+            echo ""
+        fi
+    fi
+
+    return 0
+}
+
 # Get saved optimized config from model-configs.json
 # Returns: gpu_layers ctx_size batch_size (space separated)
 get_saved_config() {
@@ -297,6 +407,9 @@ start_model() {
         print_error "Model file not found: $model_path"
         return 1
     fi
+
+    # Check memory availability
+    check_memory_available "$model_path" "$ctx_size" "$model_name"
 
     # Setup environment
     setup_gpu_environment
@@ -421,6 +534,9 @@ run_model_foreground() {
         echo "ERROR: Model file not found: $model_path" >&2
         return 1
     fi
+
+    # Check memory availability (warning only for foreground mode)
+    check_memory_available "$model_path" "$ctx_size" "$model_name" || true
 
     setup_gpu_environment
     mkdir -p "$RUN_DIR"
