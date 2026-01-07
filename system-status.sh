@@ -199,12 +199,20 @@ pad() {
     fi
 }
 
-# Print a row with colored values - content must be pre-formatted to exact width
+# Print a row - auto-pads content to exactly W characters
 print_row() {
     local color=$1
     shift
     local content="$*"
-    echo -e "${color}│${NC}${content}${color}│${NC}"
+    # Strip ANSI codes to measure visible length
+    local visible=$(echo -e "$content" | sed 's/\x1b\[[0-9;]*m//g')
+    local len=${#visible}
+    local padding=""
+    if [[ $len -lt $W ]]; then
+        local need=$((W - len))
+        for ((i=0; i<need; i++)); do padding+=" "; done
+    fi
+    echo -e "${color}│${NC}${content}${padding}${color}│${NC}"
 }
 
 display_status() {
