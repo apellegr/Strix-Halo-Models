@@ -403,6 +403,58 @@ export HSA_OVERRIDE_GFX_VERSION=11.5.1
 
 ---
 
+## Memory Management
+
+### Unified Memory Architecture
+
+Strix Halo uses unified memory where CPU and GPU share the same 128GB RAM pool. This enables running very large models but has implications for running multiple models:
+
+- **Single large model**: Can use up to ~115GB for model + context
+- **Multiple models**: GPU memory allocation may fail even with RAM available
+- The script automatically warns when starting a second model
+
+### Memory Warnings
+
+When starting a model while another is running, you'll see:
+
+```
+[WARN] Concurrent Model Warning
+  Another model is already running using ~51GB
+  Running multiple GPU-accelerated models simultaneously
+  may cause memory allocation failures on unified memory APUs.
+
+  If this model fails to load, try:
+    - Stop other models first: ./start-llm-server.sh stop
+    - Use smaller context: reduces KV cache memory
+    - Use fewer GPU layers: offload to CPU instead
+```
+
+### Running Multiple Models
+
+To run multiple models simultaneously:
+
+1. **Use smaller models** - 7B models use ~6-8GB each
+2. **Reduce context size** - Lower context = smaller KV cache
+3. **Use CPU offload** - Set `gpu_layers` lower than 999 in `model-configs.json`
+
+Example for running two models:
+```bash
+# First model (large, optimized)
+./start-llm-server.sh qwen3-235b-thinking  # Uses ~51GB, port 8081
+
+# Second model would need to use remaining memory
+# May fail with full GPU offload - consider CPU-only for second model
+```
+
+### Memory Estimation
+
+The script estimates memory needs based on:
+- Model file size (including all parts for split models)
+- Context size (KV cache scales with context)
+- Compute buffer overhead (~10-20% of model size)
+
+---
+
 ## Performance Tips
 
 ### Optimal Thread Count
