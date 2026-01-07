@@ -182,6 +182,45 @@ print_error()   { echo -e "${RED}[ERROR]${NC} $1"; }
 
 get_pid_file() { echo "$RUN_DIR/${1}.pid"; }
 get_log_file() { echo "$RUN_DIR/${1}.log"; }
+get_port_file() { echo "$RUN_DIR/${1}.port"; }
+
+# Check if a port is available
+is_port_available() {
+    local port="$1"
+    ! ss -tuln 2>/dev/null | grep -q ":${port} " && return 0
+    return 1
+}
+
+# Find the next available port starting from a base port
+find_available_port() {
+    local base_port="${1:-$DEFAULT_PORT}"
+    local max_port=$((base_port + 100))
+    local port=$base_port
+
+    while [[ $port -lt $max_port ]]; do
+        if is_port_available "$port"; then
+            echo "$port"
+            return 0
+        fi
+        port=$((port + 1))
+    done
+
+    # Fallback to base port if all checked ports are in use
+    echo "$base_port"
+    return 1
+}
+
+# Get the port for a running model
+get_model_port() {
+    local model_name="$1"
+    local port_file=$(get_port_file "$model_name")
+
+    if [[ -f "$port_file" ]]; then
+        cat "$port_file"
+    else
+        echo ""
+    fi
+}
 
 # Get saved optimized config from model-configs.json
 # Returns: gpu_layers ctx_size batch_size (space separated)
@@ -225,7 +264,7 @@ is_running() {
 
 start_model() {
     local model_name="$1"
-    local port="${2:-$DEFAULT_PORT}"
+    local requested_port="$2"
 
     if [[ -z "${MODELS[$model_name]}" ]]; then
         print_error "Unknown model: $model_name"
@@ -234,7 +273,8 @@ start_model() {
     fi
 
     if is_running "$model_name"; then
-        print_warning "Model '$model_name' is already running"
+        local existing_port=$(get_model_port "$model_name")
+        print_warning "Model '$model_name' is already running on port $existing_port"
         return 0
     fi
 
@@ -264,8 +304,21 @@ start_model() {
     # Create run directory
     mkdir -p "$RUN_DIR"
 
+    # Determine port - use requested port or find an available one
+    local port
+    if [[ -n "$requested_port" ]]; then
+        port="$requested_port"
+        if ! is_port_available "$port"; then
+            print_warning "Port $port is in use, finding available port..."
+            port=$(find_available_port "$DEFAULT_PORT")
+        fi
+    else
+        port=$(find_available_port "$DEFAULT_PORT")
+    fi
+
     local pid_file=$(get_pid_file "$model_name")
     local log_file=$(get_log_file "$model_name")
+    local port_file=$(get_port_file "$model_name")
 
     if [[ -n "$is_optimized" ]]; then
         print_header "Starting $model_name (OPTIMIZED)"
@@ -281,6 +334,9 @@ start_model() {
     print_info "Port: $port"
     print_info "Threads: $DEFAULT_THREADS"
     echo ""
+
+    # Save the port for status tracking
+    echo "$port" > "$port_file"
 
     # Start the server
     nohup "$LLAMA_SERVER" \
@@ -340,7 +396,7 @@ start_model() {
 run_model_foreground() {
     # Run model in foreground (for systemd)
     local model_name="$1"
-    local port="${2:-$DEFAULT_PORT}"
+    local requested_port="$2"
 
     if [[ -z "${MODELS[$model_name]}" ]]; then
         echo "ERROR: Unknown model: $model_name" >&2
@@ -369,7 +425,20 @@ run_model_foreground() {
     setup_gpu_environment
     mkdir -p "$RUN_DIR"
 
+    # Determine port - use requested port or find an available one
+    local port
+    if [[ -n "$requested_port" ]]; then
+        port="$requested_port"
+        if ! is_port_available "$port"; then
+            echo "Port $port is in use, finding available port..."
+            port=$(find_available_port "$DEFAULT_PORT")
+        fi
+    else
+        port=$(find_available_port "$DEFAULT_PORT")
+    fi
+
     local pid_file=$(get_pid_file "$model_name")
+    local port_file=$(get_port_file "$model_name")
 
     if [[ -n "$is_optimized" ]]; then
         echo "Starting $model_name in foreground mode (OPTIMIZED)"
@@ -380,8 +449,9 @@ run_model_foreground() {
     echo "Model: $(basename "$model_path")"
     echo "GPU Layers: $gpu_layers, Context: $ctx_size, Port: $port"
 
-    # Write PID file (current process, will be replaced by exec)
+    # Write PID and port files
     echo $$ > "$pid_file"
+    echo "$port" > "$port_file"
 
     # Exec replaces this process with llama-server
     exec "$LLAMA_SERVER" \
@@ -400,6 +470,7 @@ run_model_foreground() {
 stop_model() {
     local model_name="$1"
     local pid_file=$(get_pid_file "$model_name")
+    local port_file=$(get_port_file "$model_name")
 
     if [[ ! -f "$pid_file" ]]; then
         print_warning "Model '$model_name' is not running"
@@ -427,7 +498,7 @@ stop_model() {
         print_success "Stopped '$model_name'"
     fi
 
-    rm -f "$pid_file"
+    rm -f "$pid_file" "$port_file"
 }
 
 stop_all() {
@@ -455,6 +526,7 @@ show_status() {
 
     for model_name in "${!MODELS[@]}"; do
         local pid_file=$(get_pid_file "$model_name")
+        local port_file=$(get_port_file "$model_name")
         local status="${RED}stopped${NC}"
         local pid="-"
         local mem="-"
@@ -471,9 +543,8 @@ show_status() {
                     status="${YELLOW}running${NC}"
                 fi
                 mem=$(ps -o rss= -p "$pid" 2>/dev/null | awk '{printf "%.1fGB", $1/1024/1024}') || mem="-"
-                # Try to get port from process cmdline
-                port=$(ps -o args= -p "$pid" 2>/dev/null | grep -oE '\-\-port [0-9]+' | awk '{print $2}') || port=""
-                [[ -z "$port" ]] && port="8081"
+                # Get port from port file
+                port=$(cat "$port_file" 2>/dev/null) || port="-"
                 running_count=$((running_count + 1))
             fi
         fi

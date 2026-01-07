@@ -7,4 +7,5 @@ benchmarks/
 
 # Runtime files
 *.pid
+*.port
 *.log
