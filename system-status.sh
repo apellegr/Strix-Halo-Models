@@ -81,7 +81,7 @@ read_dpm_clock() {
 GPU_PATH="/sys/class/drm/card0/device"
 GPU_HWMON="/sys/class/drm/card0/device/hwmon/hwmon5"
 
-# Function to get running models (returns: model|port|ctx|cpu|mem|pid)
+# Function to get running models (returns: model|port|ctx|cpu|mem|pid|runtime)
 get_running_models() {
     ps aux 2>/dev/null | grep -E 'llama-server|ollama|vllm' | grep -v grep | while read -r line; do
         local pid=$(echo "$line" | awk '{print $2}')
@@ -90,7 +90,9 @@ get_running_models() {
         local model=$(echo "$line" | grep -oP '(?<=--alias )[^ ]+' || echo "unknown")
         local port=$(echo "$line" | grep -oP '(?<=--port )[^ ]+' || echo "?")
         local ctx=$(echo "$line" | grep -oP '(?<=--ctx-size )[^ ]+' || echo "?")
-        echo "$model|$port|$ctx|$cpu|$mem|$pid"
+        # Get elapsed time (runtime) for the process
+        local runtime=$(ps -p "$pid" -o etime= 2>/dev/null | tr -d ' ')
+        echo "$model|$port|$ctx|$cpu|$mem|$pid|$runtime"
     done
 }
 
@@ -364,15 +366,15 @@ display_status() {
 
     # Running Models Section
     echo -e "${GREEN}${BOLD}┌─ Running Models ──────────────────────────────────────────────────┐${NC}"
-    printf "${GREEN}│${NC} ${BOLD}%-20s %-6s %-7s %-6s %-6s${NC} ${GREEN}│${NC}\n" "Model" "Port" "Ctx" "CPU%" "MEM%"
+    printf "${GREEN}│${NC} ${BOLD}%-18s %-6s %-6s %-6s %-6s %-12s${NC} ${GREEN}│${NC}\n" "Model" "Port" "Ctx" "CPU%" "MEM%" "Runtime"
     echo -e "${GREEN}│${NC} ─────────────────────────────────────────────────────────────────── ${GREEN}│${NC}"
 
     local model_count=0
     local models_data=""
-    while IFS='|' read -r model port ctx cpu mem pid; do
+    while IFS='|' read -r model port ctx cpu mem pid runtime; do
         if [[ -n "$model" ]]; then
-            printf "${GREEN}│${NC} %-20s %-6s %-7s %-6s %-6s ${GREEN}│${NC}\n" "$model" "$port" "$ctx" "$cpu" "$mem"
-            models_data+="$model|$port|$ctx|$cpu|$mem|$pid"$'\n'
+            printf "${GREEN}│${NC} %-18s %-6s %-6s %-6s %-6s %-12s ${GREEN}│${NC}\n" "$model" "$port" "$ctx" "$cpu" "$mem" "$runtime"
+            models_data+="$model|$port|$ctx|$cpu|$mem|$pid|$runtime"$'\n'
             model_count=$((model_count + 1))
         fi
     done <<< "$(get_running_models)"
@@ -390,7 +392,7 @@ display_status() {
         echo -e "${CYAN}│${NC} ─────────────────────────────────────────────────────────────────── ${CYAN}│${NC}"
 
         local has_metrics=false
-        while IFS='|' read -r model port ctx cpu mem pid; do
+        while IFS='|' read -r model port ctx cpu mem pid runtime; do
             if [[ -n "$model" ]] && [[ "$port" != "?" ]]; then
                 IFS='|' read -r prompt_tok gen_tok prompt_sec gen_sec <<< "$(get_model_metrics "$port")"
 
