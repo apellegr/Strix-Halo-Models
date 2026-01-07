@@ -85,15 +85,16 @@ Strix-Halo-Models/
 ### Start a Model
 
 ```bash
-# Start with default settings
+# Start with auto-assigned port (finds next available starting from 8081)
 ./start-llm-server.sh qwen3-235b-thinking
 
 # Start on a specific port
 ./start-llm-server.sh qwen2.5-7b 8082
 
-# Start multiple models on different ports
-./start-llm-server.sh qwen2.5-7b 8082
-./start-llm-server.sh llama-3.1-8b 8083
+# Start multiple models (each gets next available port automatically)
+./start-llm-server.sh qwen3-235b-thinking  # Gets 8081
+./start-llm-server.sh qwen2.5-7b           # Gets 8082
+./start-llm-server.sh llama-3.1-8b         # Gets 8083
 ```
 
 ### Check Status
@@ -353,15 +354,18 @@ loginctl enable-linger $USER
 
 ### Run Multiple Models
 
-You can run multiple models as separate services:
+You can run multiple models as separate services - each will automatically get the next available port:
 
 ```bash
-systemctl --user enable --now llm-server@qwen3-235b-thinking
-systemctl --user enable --now llm-server@qwen2.5-7b
-systemctl --user enable --now llm-server@llama-3.1-8b
+systemctl --user enable --now llm-server@qwen3-235b-thinking  # Gets port 8081
+systemctl --user enable --now llm-server@qwen2.5-7b           # Gets port 8082
+systemctl --user enable --now llm-server@llama-3.1-8b         # Gets port 8083
 ```
 
-**Note:** Each model uses the default port (8081). To run multiple models simultaneously, you'll need to modify the service or script to use different ports.
+Check assigned ports with:
+```bash
+./start-llm-server.sh status
+```
 
 ---
 
