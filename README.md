@@ -285,32 +285,83 @@ cp my-model-13b-Q4_K_M.gguf models/balanced/my-model-13b/
 
 ## Systemd Service
 
-### Setup Auto-Start
+The included `llm-server@.service` template enables auto-start of models on boot.
+
+### Install the Service
 
 ```bash
-# Copy service file
+# Create systemd user directory if needed
 mkdir -p ~/.config/systemd/user
+
+# Copy the service template
 cp llm-server@.service ~/.config/systemd/user/
 
-# Reload systemd
+# Reload systemd to recognize the new service
 systemctl --user daemon-reload
+```
 
-# Enable and start a model
+### Customize Paths (if needed)
+
+The service uses `%h` (home directory specifier). If your installation is not in `~/Strix-Halo-Models`, edit the service file:
+
+```bash
+nano ~/.config/systemd/user/llm-server@.service
+
+# Update these lines to match your paths:
+# WorkingDirectory=%h/your-path/Strix-Halo-Models
+# ExecStart=%h/your-path/Strix-Halo-Models/start-llm-server.sh run %i
+# ExecStop=%h/your-path/Strix-Halo-Models/start-llm-server.sh stop %i
+```
+
+### Enable and Start a Model
+
+```bash
+# Enable (auto-start on boot) and start immediately
+systemctl --user enable --now llm-server@qwen3-235b-thinking
+
+# Or separately:
 systemctl --user enable llm-server@qwen3-235b-thinking
 systemctl --user start llm-server@qwen3-235b-thinking
+```
 
+### Manage the Service
+
+```bash
 # Check status
 systemctl --user status llm-server@qwen3-235b-thinking
 
-# View logs
+# View logs (follow mode)
 journalctl --user -u llm-server@qwen3-235b-thinking -f
+
+# Stop the service
+systemctl --user stop llm-server@qwen3-235b-thinking
+
+# Disable auto-start
+systemctl --user disable llm-server@qwen3-235b-thinking
+
+# Restart after config changes
+systemctl --user restart llm-server@qwen3-235b-thinking
 ```
 
-### Enable Lingering (for startup without login)
+### Enable Lingering (start without login)
+
+By default, user services only run when you're logged in. Enable lingering to start services at boot:
 
 ```bash
 loginctl enable-linger $USER
 ```
+
+### Run Multiple Models
+
+You can run multiple models as separate services:
+
+```bash
+systemctl --user enable --now llm-server@qwen3-235b-thinking
+systemctl --user enable --now llm-server@qwen2.5-7b
+systemctl --user enable --now llm-server@llama-3.1-8b
+```
+
+**Note:** Each model uses the default port (8081). To run multiple models simultaneously, you'll need to modify the service or script to use different ports.
 
 ---
 
