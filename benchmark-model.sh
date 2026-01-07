@@ -19,6 +19,10 @@
 #===============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source environment file if it exists
+[[ -f "$SCRIPT_DIR/.env" ]] && source "$SCRIPT_DIR/.env"
+
 MODELS_DIR="${MODELS_DIR:-$SCRIPT_DIR/models}"
 RESULTS_DIR="${RESULTS_DIR:-$SCRIPT_DIR/benchmarks}"
 CONFIG_FILE="${CONFIG_FILE:-$SCRIPT_DIR/model-configs.json}"

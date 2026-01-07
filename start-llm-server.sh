@@ -22,6 +22,10 @@
 #===============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source environment file if it exists
+[[ -f "$SCRIPT_DIR/.env" ]] && source "$SCRIPT_DIR/.env"
+
 MODELS_DIR="${MODELS_DIR:-$SCRIPT_DIR/models}"
 RUN_DIR="${RUN_DIR:-$HOME/.llm-servers}"
 LLAMA_SERVER="${LLAMA_SERVER:-$HOME/.local/bin/llama-server}"
