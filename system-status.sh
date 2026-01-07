@@ -77,7 +77,7 @@ get_running_models() {
 
 get_model_metrics() {
     local port=$1
-    local metrics=$(curl -s --max-time 1 "http://localhost:$port/metrics" 2>/dev/null)
+    local metrics=$(curl -s --max-time 3 "http://localhost:$port/metrics" 2>/dev/null)
     if [[ -z "$metrics" ]] || echo "$metrics" | grep -q '"error"'; then
         echo "N/A|N/A|N/A|N/A"
         return
@@ -330,7 +330,7 @@ display_status() {
                     [[ "$out_tps" != "--" ]] && [[ "$out_tps" != "0.0" ]] && out_color=$GREEN
                     print_row "$CYAN" " $(pad "$model" 18)$(pad "$fmt_prompt" 10)$(pad "$fmt_gen" 10)${in_color}$(pad "$in_tps" 12)${NC}${out_color}$(pad "$out_tps" 12)${NC} "
                 else
-                    print_row "$CYAN" " $(pad "$model" 18)${YELLOW}$(pad "(metrics not enabled)" 44)${NC} "
+                    print_row "$CYAN" " $(pad "$model" 18)${DIM}$(pad "(server busy)" 44)${NC} "
                 fi
             fi
         done <<< "$models_data"
