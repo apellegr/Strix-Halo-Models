@@ -625,6 +625,7 @@ run_model_foreground() {
         --parallel "$DEFAULT_PARALLEL" \
         --flash-attn "$DEFAULT_FLASH_ATTN" \
         --no-mmap \
+        --metrics \
         --alias "$model_name" \
         $extra_args
 }

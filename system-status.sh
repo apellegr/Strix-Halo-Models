@@ -68,7 +68,7 @@ read_dpm_clock() {
 GPU_PATH="/sys/class/drm/card0/device"
 GPU_HWMON="/sys/class/drm/card0/device/hwmon/hwmon5"
 
-# Function to get running models
+# Function to get running models (returns: model|port|ctx|cpu|mem|pid)
 get_running_models() {
     ps aux 2>/dev/null | grep -E 'llama-server|ollama|vllm' | grep -v grep | while read -r line; do
         local pid=$(echo "$line" | awk '{print $2}')
@@ -79,6 +79,46 @@ get_running_models() {
         local ctx=$(echo "$line" | grep -oP '(?<=--ctx-size )[^ ]+' || echo "?")
         echo "$model|$port|$ctx|$cpu|$mem|$pid"
     done
+}
+
+# Function to get token metrics from a model's /metrics endpoint
+# Returns: prompt_tokens|generated_tokens|prompt_seconds|generated_seconds
+get_model_metrics() {
+    local port=$1
+    local metrics=$(curl -s --max-time 1 "http://localhost:$port/metrics" 2>/dev/null)
+
+    if [[ -z "$metrics" ]] || echo "$metrics" | grep -q '"error"'; then
+        echo "N/A|N/A|N/A|N/A"
+        return
+    fi
+
+    # Parse Prometheus-style metrics
+    local prompt_tokens=$(echo "$metrics" | grep '^llamacpp:prompt_tokens_total' | awk '{print $2}' | head -1)
+    local gen_tokens=$(echo "$metrics" | grep '^llamacpp:tokens_predicted_total' | awk '{print $2}' | head -1)
+    local prompt_seconds=$(echo "$metrics" | grep '^llamacpp:prompt_seconds_total' | awk '{print $2}' | head -1)
+    local gen_seconds=$(echo "$metrics" | grep '^llamacpp:tokens_predicted_seconds_total' | awk '{print $2}' | head -1)
+
+    echo "${prompt_tokens:-0}|${gen_tokens:-0}|${prompt_seconds:-0}|${gen_seconds:-0}"
+}
+
+# Function to format large numbers with K/M suffix
+format_number() {
+    local num=$1
+    if [[ "$num" == "N/A" ]] || [[ -z "$num" ]]; then
+        echo "N/A"
+        return
+    fi
+
+    # Remove decimal part for comparison
+    local int_num=${num%.*}
+
+    if [[ $int_num -ge 1000000 ]]; then
+        awk "BEGIN {printf \"%.1fM\", $num / 1000000}"
+    elif [[ $int_num -ge 1000 ]]; then
+        awk "BEGIN {printf \"%.1fK\", $num / 1000}"
+    else
+        echo "$int_num"
+    fi
 }
 
 # Function to display status
@@ -169,13 +209,15 @@ display_status() {
 
     # Running Models Section
     echo -e "${GREEN}${BOLD}┌─ Running Models ──────────────────────────────────────────────────┐${NC}"
-    printf "${GREEN}│${NC} ${BOLD}%-25s %-8s %-8s %-8s %-8s %-8s${NC} ${GREEN}│${NC}\n" "Model" "Port" "Ctx" "CPU%" "MEM%" "PID"
+    printf "${GREEN}│${NC} ${BOLD}%-20s %-6s %-7s %-6s %-6s${NC} ${GREEN}│${NC}\n" "Model" "Port" "Ctx" "CPU%" "MEM%"
     echo -e "${GREEN}│${NC} ─────────────────────────────────────────────────────────────────── ${GREEN}│${NC}"
 
     local model_count=0
+    local models_data=""
     while IFS='|' read -r model port ctx cpu mem pid; do
         if [[ -n "$model" ]]; then
-            printf "${GREEN}│${NC} %-25s %-8s %-8s %-8s %-8s %-8s ${GREEN}│${NC}\n" "$model" "$port" "$ctx" "$cpu" "$mem" "$pid"
+            printf "${GREEN}│${NC} %-20s %-6s %-7s %-6s %-6s ${GREEN}│${NC}\n" "$model" "$port" "$ctx" "$cpu" "$mem"
+            models_data+="$model|$port|$ctx|$cpu|$mem|$pid"$'\n'
             model_count=$((model_count + 1))
         fi
     done <<< "$(get_running_models)"
@@ -184,6 +226,48 @@ display_status() {
         printf "${GREEN}│${NC} %-67s ${GREEN}│${NC}\n" "No models currently running"
     fi
     echo -e "${GREEN}└───────────────────────────────────────────────────────────────────┘${NC}"
+    echo ""
+
+    # Token Statistics Section (only if models are running)
+    if [[ $model_count -gt 0 ]]; then
+        echo -e "${CYAN}${BOLD}┌─ Token Statistics ────────────────────────────────────────────────┐${NC}"
+        printf "${CYAN}│${NC} ${BOLD}%-20s %-10s %-10s %-10s %-10s${NC} ${CYAN}│${NC}\n" "Model" "In Tokens" "Out Tokens" "In tok/s" "Out tok/s"
+        echo -e "${CYAN}│${NC} ─────────────────────────────────────────────────────────────────── ${CYAN}│${NC}"
+
+        local has_metrics=false
+        while IFS='|' read -r model port ctx cpu mem pid; do
+            if [[ -n "$model" ]] && [[ "$port" != "?" ]]; then
+                IFS='|' read -r prompt_tok gen_tok prompt_sec gen_sec <<< "$(get_model_metrics "$port")"
+
+                if [[ "$prompt_tok" != "N/A" ]]; then
+                    has_metrics=true
+                    # Calculate tokens per second
+                    local in_tps="N/A"
+                    local out_tps="N/A"
+
+                    if [[ -n "$prompt_sec" ]] && [[ "$prompt_sec" != "0" ]] && [[ "$prompt_tok" != "0" ]]; then
+                        in_tps=$(awk "BEGIN {printf \"%.1f\", $prompt_tok / $prompt_sec}")
+                    fi
+                    if [[ -n "$gen_sec" ]] && [[ "$gen_sec" != "0" ]] && [[ "$gen_tok" != "0" ]]; then
+                        out_tps=$(awk "BEGIN {printf \"%.1f\", $gen_tok / $gen_sec}")
+                    fi
+
+                    # Format token counts
+                    local fmt_prompt=$(format_number "$prompt_tok")
+                    local fmt_gen=$(format_number "$gen_tok")
+
+                    printf "${CYAN}│${NC} %-20s %-10s %-10s %-10s %-10s ${CYAN}│${NC}\n" "$model" "$fmt_prompt" "$fmt_gen" "$in_tps" "$out_tps"
+                else
+                    printf "${CYAN}│${NC} %-20s ${YELLOW}%-51s${NC} ${CYAN}│${NC}\n" "$model" "(metrics not enabled - restart with --metrics)"
+                fi
+            fi
+        done <<< "$models_data"
+
+        if ! $has_metrics && [[ $model_count -gt 0 ]]; then
+            printf "${CYAN}│${NC} ${YELLOW}%-67s${NC} ${CYAN}│${NC}\n" "Restart models to enable metrics (--metrics flag added to script)"
+        fi
+        echo -e "${CYAN}└───────────────────────────────────────────────────────────────────┘${NC}"
+    fi
 
     if $WATCH_MODE; then
         echo ""
