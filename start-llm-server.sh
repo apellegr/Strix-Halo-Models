@@ -486,6 +486,7 @@ start_model() {
         --parallel "$DEFAULT_PARALLEL" \
         --flash-attn "$DEFAULT_FLASH_ATTN" \
         --no-mmap \
+        --metrics \
         --alias "$model_name" \
         $extra_args \
         > "$log_file" 2>&1 &
