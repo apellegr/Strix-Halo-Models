@@ -121,6 +121,29 @@ format_number() {
     fi
 }
 
+# Function to create a visual progress bar
+# Usage: progress_bar <percentage> <width> <filled_char> <empty_char>
+progress_bar() {
+    local percent=$1
+    local width=${2:-20}
+    local filled_char=${3:-"█"}
+    local empty_char=${4:-"░"}
+
+    # Handle non-numeric or empty values
+    if [[ -z "$percent" ]] || ! [[ "$percent" =~ ^[0-9]+$ ]]; then
+        percent=0
+    fi
+
+    local filled=$((percent * width / 100))
+    local empty=$((width - filled))
+
+    local bar=""
+    for ((i=0; i<filled; i++)); do bar+="$filled_char"; done
+    for ((i=0; i<empty; i++)); do bar+="$empty_char"; done
+
+    echo "$bar"
+}
+
 # Function to display status
 display_status() {
     # Clear screen in watch mode
@@ -141,16 +164,31 @@ display_status() {
     local gpu_socclk=$(read_dpm_clock "$GPU_PATH/pp_dpm_socclk")
     local gpu_mclk=$(read_dpm_clock "$GPU_PATH/pp_dpm_mclk")
     local gpu_perf=$(cat "$GPU_PATH/power_dpm_force_performance_level" 2>/dev/null)
-    local gpu_busy=$(cat "$GPU_PATH/gpu_busy_percent" 2>/dev/null)
-    local gpu_power_uw=$(cat "$GPU_HWMON/power1_average" 2>/dev/null)
+    local gpu_busy=$(cat "$GPU_PATH/gpu_busy_percent" 2>/dev/null || echo "0")
+    local gpu_power_uw=$(cat "$GPU_HWMON/power1_average" 2>/dev/null || echo "0")
     local gpu_power=$(awk "BEGIN {printf \"%.1f\", $gpu_power_uw / 1000000}")
-    local gpu_temp_mc=$(cat "$GPU_HWMON/temp1_input" 2>/dev/null)
+    local gpu_temp_mc=$(cat "$GPU_HWMON/temp1_input" 2>/dev/null || echo "0")
     local gpu_temp=$(awk "BEGIN {printf \"%.1f\", $gpu_temp_mc / 1000}")
+
+    # Get memory bandwidth utilization if available
+    local mem_busy=$(cat "$GPU_PATH/mem_busy_percent" 2>/dev/null || echo "0")
+
+    # Create utilization bar with color based on usage
+    local gpu_bar=$(progress_bar "$gpu_busy" 20)
+    local util_color=$GREEN
+    if [[ "$gpu_busy" -ge 80 ]]; then
+        util_color=$RED
+    elif [[ "$gpu_busy" -ge 50 ]]; then
+        util_color=$YELLOW
+    fi
 
     echo -e "${CYAN}${BOLD}┌─ GPU (Radeon 8060S) ─────────────────────────────────────────────┐${NC}"
     printf "${CYAN}│${NC} %-20s ${GREEN}%-15s${NC} %-20s ${GREEN}%-10s${NC} ${CYAN}│${NC}\n" "Clock:" "$gpu_clock" "Fabric Clock:" "$gpu_fclk"
     printf "${CYAN}│${NC} %-20s ${GREEN}%-15s${NC} %-20s ${GREEN}%-10s${NC} ${CYAN}│${NC}\n" "SOC Clock:" "$gpu_socclk" "Memory Clock:" "$gpu_mclk"
-    printf "${CYAN}│${NC} %-20s ${GREEN}%-15s${NC} %-20s ${GREEN}%-10s${NC} ${CYAN}│${NC}\n" "Performance Level:" "$gpu_perf" "Utilization:" "${gpu_busy}%"
+    printf "${CYAN}│${NC} %-20s ${GREEN}%-15s${NC} %-20s ${GREEN}%-10s${NC} ${CYAN}│${NC}\n" "Performance Level:" "$gpu_perf" "Mem Bandwidth:" "${mem_busy}%"
+
+    # GPU Utilization with visual bar
+    printf "${CYAN}│${NC} %-20s ${util_color}%-6s${NC} ${util_color}%s${NC} %-22s ${CYAN}│${NC}\n" "GPU Utilization:" "${gpu_busy}%" "$gpu_bar" ""
 
     # Color temperature based on value
     local temp_color=$GREEN

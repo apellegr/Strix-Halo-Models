@@ -322,6 +322,12 @@ download_coding_models() {
         "DeepSeek-Coder-V2-Lite-Instruct-Q5_K_M.gguf" \
         "coding/deepseek-coder-v2-16b" \
         "DeepSeek Coder V2 Lite 16B (Q5_K_M) - ~11GB, strong coder"
+
+    # Qwen3 Coder 30B A3B (MoE) - Best tool calling support (unsloth)
+    download_model "unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF" \
+        "Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf" \
+        "coding/qwen3-coder-30b" \
+        "Qwen3 Coder 30B-A3B MoE (Q4_K_M) - ~19GB, excellent tool calling"
     
     # CodeLlama 70B - Large code model (TheBloke)
     download_model_pattern "TheBloke/CodeLlama-70B-Instruct-GGUF" \
