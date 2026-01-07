@@ -4,7 +4,7 @@
 
 set -e
 
-# Colors for output
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -12,18 +12,17 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 BOLD='\033[1m'
 DIM='\033[2m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Default settings
+# Settings
 WATCH_MODE=false
 INTERVAL=1
 SHOW_HELP=false
 
-# State directory for tracking metrics between refreshes (persistent across runs)
+# State directory for metrics tracking
 STATE_DIR="/tmp/system-status-metrics"
 mkdir -p "$STATE_DIR"
 
-# Cleanup old state files on exit (only in non-watch mode)
 cleanup() {
     if ! $WATCH_MODE; then
         find "$STATE_DIR" -type f -mmin +1 -delete 2>/dev/null || true
@@ -34,22 +33,10 @@ trap cleanup EXIT
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
-        -w|--watch)
-            WATCH_MODE=true
-            shift
-            ;;
-        -i|--interval)
-            INTERVAL="$2"
-            shift 2
-            ;;
-        -h|--help)
-            SHOW_HELP=true
-            shift
-            ;;
-        *)
-            echo "Unknown option: $1"
-            exit 1
-            ;;
+        -w|--watch) WATCH_MODE=true; shift ;;
+        -i|--interval) INTERVAL="$2"; shift 2 ;;
+        -h|--help) SHOW_HELP=true; shift ;;
+        *) echo "Unknown option: $1"; exit 1 ;;
     esac
 done
 
@@ -63,25 +50,18 @@ if $SHOW_HELP; then
     echo "  -w, --watch         Continuously refresh the display"
     echo "  -i, --interval SEC  Refresh interval in seconds (default: 1)"
     echo "  -h, --help          Show this help message"
-    echo ""
-    echo "Examples:"
-    echo "  $0                  Show single snapshot"
-    echo "  $0 -w               Watch mode with 1 second refresh"
-    echo "  $0 -w -i 2          Watch mode with 2 second refresh"
     exit 0
 fi
 
-# GPU sysfs paths
+# Paths
 GPU_PATH="/sys/class/drm/card0/device"
 GPU_HWMON="/sys/class/drm/card0/device/hwmon/hwmon5"
 
-# Function to read GPU clock from pp_dpm file
+# Helper functions
 read_dpm_clock() {
-    local file=$1
-    grep '\*' "$file" 2>/dev/null | awk '{print $2}' | head -1
+    grep '\*' "$1" 2>/dev/null | awk '{print $2}' | head -1
 }
 
-# Function to get running models (returns: model|port|ctx|cpu|mem|pid|runtime)
 get_running_models() {
     ps aux 2>/dev/null | grep -E 'llama-server|ollama|vllm' | grep -v grep | while read -r line; do
         local pid=$(echo "$line" | awk '{print $2}')
@@ -95,48 +75,35 @@ get_running_models() {
     done
 }
 
-# Function to get token metrics from a model's /metrics endpoint
 get_model_metrics() {
     local port=$1
     local metrics=$(curl -s --max-time 1 "http://localhost:$port/metrics" 2>/dev/null)
-
     if [[ -z "$metrics" ]] || echo "$metrics" | grep -q '"error"'; then
         echo "N/A|N/A|N/A|N/A"
         return
     fi
-
     local prompt_tokens=$(echo "$metrics" | grep '^llamacpp:prompt_tokens_total' | awk '{print $2}' | head -1)
     local gen_tokens=$(echo "$metrics" | grep '^llamacpp:tokens_predicted_total' | awk '{print $2}' | head -1)
-    local prompt_seconds=$(echo "$metrics" | grep '^llamacpp:prompt_seconds_total' | awk '{print $2}' | head -1)
-    local gen_seconds=$(echo "$metrics" | grep '^llamacpp:tokens_predicted_seconds_total' | awk '{print $2}' | head -1)
-
-    echo "${prompt_tokens:-0}|${gen_tokens:-0}|${prompt_seconds:-0}|${gen_seconds:-0}"
+    echo "${prompt_tokens:-0}|${gen_tokens:-0}|0|0"
 }
 
-# Function to calculate instantaneous tok/s
 get_instantaneous_tps() {
-    local model=$1
-    local prompt_tok=$2
-    local gen_tok=$3
+    local model=$1 prompt_tok=$2 gen_tok=$3
     local current_time=$(date +%s.%N)
     local state_file="$STATE_DIR/${model}.state"
-    local in_tps="--"
-    local out_tps="--"
+    local in_tps="--" out_tps="--"
 
     if [[ -f "$state_file" ]]; then
         IFS='|' read -r prev_prompt prev_gen prev_time < "$state_file"
         local time_delta=$(awk "BEGIN {printf \"%.3f\", $current_time - $prev_time}")
-
         if (( $(awk "BEGIN {print ($time_delta > 0.1) ? 1 : 0}") )); then
             local prompt_delta=$(awk "BEGIN {print $prompt_tok - $prev_prompt}")
             local gen_delta=$(awk "BEGIN {print $gen_tok - $prev_gen}")
-
             if (( $(awk "BEGIN {print ($prompt_delta > 0) ? 1 : 0}") )); then
                 in_tps=$(awk "BEGIN {printf \"%.1f\", $prompt_delta / $time_delta}")
             else
                 in_tps="0.0"
             fi
-
             if (( $(awk "BEGIN {print ($gen_delta > 0) ? 1 : 0}") )); then
                 out_tps=$(awk "BEGIN {printf \"%.1f\", $gen_delta / $time_delta}")
             else
@@ -144,12 +111,10 @@ get_instantaneous_tps() {
             fi
         fi
     fi
-
     echo "$prompt_tok|$gen_tok|$current_time" > "$state_file"
     echo "$in_tps|$out_tps"
 }
 
-# Format large numbers
 format_number() {
     local num=$1
     [[ "$num" == "N/A" ]] || [[ -z "$num" ]] && { echo "N/A"; return; }
@@ -163,10 +128,8 @@ format_number() {
     fi
 }
 
-# Create progress bar
 progress_bar() {
-    local percent=$1
-    local width=${2:-20}
+    local percent=$1 width=${2:-20}
     [[ -z "$percent" ]] || ! [[ "$percent" =~ ^[0-9]+$ ]] && percent=0
     local filled=$((percent * width / 100))
     local empty=$((width - filled))
@@ -176,66 +139,80 @@ progress_bar() {
     echo "$bar"
 }
 
-# Get CPU utilization
 get_cpu_utilization() {
     local cpu_line1=$(head -1 /proc/stat)
     local vals1=($cpu_line1)
     sleep 0.1
     local cpu_line2=$(head -1 /proc/stat)
     local vals2=($cpu_line2)
-
     local total1=$((vals1[1] + vals1[2] + vals1[3] + vals1[4] + vals1[5] + vals1[6] + vals1[7]))
     local total2=$((vals2[1] + vals2[2] + vals2[3] + vals2[4] + vals2[5] + vals2[6] + vals2[7]))
     local busy1=$((vals1[1] + vals1[2] + vals1[3] + vals1[6] + vals1[7]))
     local busy2=$((vals2[1] + vals2[2] + vals2[3] + vals2[6] + vals2[7]))
-
     local diff_total=$((total2 - total1))
     local diff_busy=$((busy2 - busy1))
-
     [[ $diff_total -gt 0 ]] && echo $((diff_busy * 100 / diff_total)) || echo "0"
 }
 
-# Print a line with fixed width (68 chars inside borders)
-W=68
+# Table width (content between borders)
+W=70
 
-line() {
-    local color=$1
-    local content=$2
-    # Pad or truncate to exactly W characters
-    printf "${color}│${NC} %-${W}s ${color}│${NC}\n" "$content"
+# Print functions - build strings to exact width, then add borders
+print_header() {
+    local color=$1 title=$2
+    local title_part="─ ${title} "
+    local title_len=$((${#title} + 3))
+    local dashes=$((W - title_len))
+    local line="┌${title_part}"
+    for ((i=0; i<dashes; i++)); do line+="─"; done
+    line+="┐"
+    echo -e "${color}${BOLD}${line}${NC}"
 }
 
-header_line() {
+print_footer() {
     local color=$1
-    local title=$2
-    local dashes=""
-    local title_len=${#title}
-    local remaining=$((W - title_len - 2))
-    for ((i=0; i<remaining; i++)); do dashes+="─"; done
-    echo -e "${color}${BOLD}┌─ ${title} ${dashes}┐${NC}"
+    local line="└"
+    for ((i=0; i<W; i++)); do line+="─"; done
+    line+="┘"
+    echo -e "${color}${line}${NC}"
 }
 
-footer_line() {
+print_sep() {
     local color=$1
-    local dashes=""
-    for ((i=0; i<W+2; i++)); do dashes+="─"; done
-    echo -e "${color}└${dashes}┘${NC}"
+    local line="├"
+    for ((i=0; i<W; i++)); do line+="─"; done
+    line+="┤"
+    echo -e "${color}${line}${NC}"
 }
 
-sep_line() {
-    local color=$1
-    local dashes=""
-    for ((i=0; i<W+2; i++)); do dashes+="─"; done
-    echo -e "${color}├${dashes}┤${NC}"
+# Pad string to exact width (plain text, no colors)
+pad() {
+    local str="$1" width=$2
+    local len=${#str}
+    if [[ $len -ge $width ]]; then
+        echo "${str:0:$width}"
+    else
+        local spaces=$((width - len))
+        local padding=""
+        for ((i=0; i<spaces; i++)); do padding+=" "; done
+        echo "${str}${padding}"
+    fi
 }
 
-# Main display function
+# Print a row with colored values - content must be pre-formatted to exact width
+print_row() {
+    local color=$1
+    shift
+    local content="$*"
+    echo -e "${color}│${NC}${content}${color}│${NC}"
+}
+
 display_status() {
     local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
 
-    # Title
+    # Title box
     echo -e "${BOLD}╔══════════════════════════════════════════════════════════════════════╗${NC}"
-    printf "${BOLD}║%70s║${NC}\n" "AMD Strix Halo System Status - $timestamp  "
+    echo -e "${BOLD}║           AMD Strix Halo System Status - ${timestamp}           ║${NC}"
     echo -e "${BOLD}╚══════════════════════════════════════════════════════════════════════╝${NC}"
     echo
 
@@ -256,24 +233,21 @@ display_status() {
     local util_color=$GREEN
     [[ "$gpu_busy" -ge 80 ]] && util_color=$RED
     [[ "$gpu_busy" -ge 50 ]] && [[ "$gpu_busy" -lt 80 ]] && util_color=$YELLOW
-
     local temp_color=$GREEN
     (( $(echo "$gpu_temp > 80" | bc -l 2>/dev/null || echo 0) )) && temp_color=$RED
-    (( $(echo "$gpu_temp > 70" | bc -l 2>/dev/null || echo 0) )) && (( $(echo "$gpu_temp <= 80" | bc -l 2>/dev/null || echo 0) )) && temp_color=$YELLOW
 
-    header_line "$CYAN" "GPU (Radeon 8060S)"
-    printf "${CYAN}│${NC} %-16s ${GREEN}%-14s${NC} %-18s ${GREEN}%-14s${NC} ${CYAN}│${NC}\n" "Clock:" "$gpu_clock" "Fabric Clock:" "$gpu_fclk"
-    printf "${CYAN}│${NC} %-16s ${GREEN}%-14s${NC} %-18s ${GREEN}%-14s${NC} ${CYAN}│${NC}\n" "SOC Clock:" "$gpu_socclk" "Memory Clock:" "$gpu_mclk"
-    printf "${CYAN}│${NC} %-16s ${GREEN}%-14s${NC} %-18s ${GREEN}%-14s${NC} ${CYAN}│${NC}\n" "Perf Level:" "$gpu_perf" "Mem Bandwidth:" "${mem_busy}%"
-    printf "${CYAN}│${NC} %-16s ${util_color}%-5s ${util_color}%-20s${NC} %19s ${CYAN}│${NC}\n" "Utilization:" "${gpu_busy}%" "$gpu_bar" ""
-    printf "${CYAN}│${NC} %-16s ${temp_color}%-14s${NC} %-18s ${YELLOW}%-14s${NC} ${CYAN}│${NC}\n" "Temperature:" "${gpu_temp}°C" "Power:" "${gpu_power}W"
-    footer_line "$CYAN"
+    print_header "$CYAN" "GPU (Radeon 8060S)"
+    print_row "$CYAN" " $(pad "Clock:" 16)${GREEN}$(pad "$gpu_clock" 12)${NC}  $(pad "Fabric Clock:" 16)${GREEN}$(pad "$gpu_fclk" 12)${NC}  "
+    print_row "$CYAN" " $(pad "SOC Clock:" 16)${GREEN}$(pad "$gpu_socclk" 12)${NC}  $(pad "Memory Clock:" 16)${GREEN}$(pad "$gpu_mclk" 12)${NC}  "
+    print_row "$CYAN" " $(pad "Perf Level:" 16)${GREEN}$(pad "$gpu_perf" 12)${NC}  $(pad "Mem Bandwidth:" 16)${GREEN}$(pad "${mem_busy}%" 12)${NC}  "
+    print_row "$CYAN" " $(pad "Utilization:" 16)${util_color}$(pad "${gpu_busy}%" 6)${gpu_bar}${NC}$(pad "" 16)  "
+    print_row "$CYAN" " $(pad "Temperature:" 16)${temp_color}$(pad "${gpu_temp}°C" 12)${NC}  $(pad "Power:" 16)${YELLOW}$(pad "${gpu_power}W" 12)${NC}  "
+    print_footer "$CYAN"
     echo
 
     # CPU Section
     local cpu_gov=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null)
-    local cpu_freq_sum=0
-    local cpu_count=0
+    local cpu_freq_sum=0 cpu_count=0
     for freq_file in /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq; do
         [[ -f "$freq_file" ]] && { freq=$(cat "$freq_file" 2>/dev/null || echo "0"); cpu_freq_sum=$((cpu_freq_sum + freq)); cpu_count=$((cpu_count + 1)); }
     done
@@ -286,16 +260,14 @@ display_status() {
     local cpu_util_color=$GREEN
     [[ "$cpu_util" -ge 80 ]] && cpu_util_color=$RED
     [[ "$cpu_util" -ge 50 ]] && [[ "$cpu_util" -lt 80 ]] && cpu_util_color=$YELLOW
-
     local cpu_temp_color=$GREEN
     (( $(echo "$cpu_temp > 90" | bc -l 2>/dev/null || echo 0) )) && cpu_temp_color=$RED
-    (( $(echo "$cpu_temp > 80" | bc -l 2>/dev/null || echo 0) )) && (( $(echo "$cpu_temp <= 90" | bc -l 2>/dev/null || echo 0) )) && cpu_temp_color=$YELLOW
 
-    header_line "$BLUE" "CPU (Ryzen AI MAX+ 395)"
-    printf "${BLUE}│${NC} %-16s ${GREEN}%-14s${NC} %-18s ${GREEN}%-14s${NC} ${BLUE}│${NC}\n" "Governor:" "$cpu_gov" "Avg Frequency:" "${cpu_freq}MHz"
-    printf "${BLUE}│${NC} %-16s ${cpu_util_color}%-5s ${cpu_util_color}%-20s${NC} %19s ${BLUE}│${NC}\n" "Utilization:" "${cpu_util}%" "$cpu_bar" ""
-    printf "${BLUE}│${NC} %-16s ${cpu_temp_color}%-14s${NC} %34s ${BLUE}│${NC}\n" "Temperature:" "${cpu_temp}°C" ""
-    footer_line "$BLUE"
+    print_header "$BLUE" "CPU (Ryzen AI MAX+ 395)"
+    print_row "$BLUE" " $(pad "Governor:" 16)${GREEN}$(pad "$cpu_gov" 12)${NC}  $(pad "Avg Frequency:" 16)${GREEN}$(pad "${cpu_freq}MHz" 12)${NC}  "
+    print_row "$BLUE" " $(pad "Utilization:" 16)${cpu_util_color}$(pad "${cpu_util}%" 6)${cpu_bar}${NC}$(pad "" 16)  "
+    print_row "$BLUE" " $(pad "Temperature:" 16)${cpu_temp_color}$(pad "${cpu_temp}°C" 12)${NC}  $(pad "" 16)$(pad "" 14)  "
+    print_footer "$BLUE"
     echo
 
     # Memory Section
@@ -307,62 +279,55 @@ display_status() {
     local gtt_total=$(($(cat "$GPU_PATH/mem_info_gtt_total" 2>/dev/null || echo 0) / 1024 / 1024 / 1024))
     local gtt_used=$(($(cat "$GPU_PATH/mem_info_gtt_used" 2>/dev/null || echo 0) / 1024 / 1024 / 1024))
 
-    header_line "$YELLOW" "Memory"
-    printf "${YELLOW}│${NC} %-16s ${GREEN}%-14s${NC} %-18s ${GREEN}%-14s${NC} ${YELLOW}│${NC}\n" "System RAM:" "${mem_used}G / ${mem_total}G" "Usage:" "${mem_percent}%"
-    printf "${YELLOW}│${NC} %-16s ${GREEN}%-14s${NC} %-18s ${GREEN}%-14s${NC} ${YELLOW}│${NC}\n" "VRAM:" "${vram_used}M / ${vram_total}M" "GTT:" "${gtt_used}G / ${gtt_total}G"
-    footer_line "$YELLOW"
+    print_header "$YELLOW" "Memory"
+    print_row "$YELLOW" " $(pad "System RAM:" 16)${GREEN}$(pad "${mem_used}G / ${mem_total}G" 12)${NC}  $(pad "Usage:" 16)${GREEN}$(pad "${mem_percent}%" 12)${NC}  "
+    print_row "$YELLOW" " $(pad "VRAM:" 16)${GREEN}$(pad "${vram_used}M / ${vram_total}M" 12)${NC}  $(pad "GTT:" 16)${GREEN}$(pad "${gtt_used}G / ${gtt_total}G" 12)${NC}  "
+    print_footer "$YELLOW"
     echo
 
     # Running Models Section
-    header_line "$GREEN" "Running Models"
-    printf "${GREEN}│${NC} ${BOLD}%-17s %5s %6s %5s %5s %11s${NC}  ${GREEN}│${NC}\n" "Model" "Port" "Ctx" "CPU%" "MEM%" "Runtime"
-    sep_line "$GREEN"
+    print_header "$GREEN" "Running Models"
+    print_row "$GREEN" " ${BOLD}$(pad "Model" 18)$(pad "Port" 7)$(pad "Ctx" 7)$(pad "CPU%" 6)$(pad "MEM%" 6)$(pad "Runtime" 12)${NC} "
+    print_sep "$GREEN"
 
     local model_count=0
     local models_data=""
     while IFS='|' read -r model port ctx cpu mem pid runtime; do
         if [[ -n "$model" ]]; then
-            printf "${GREEN}│${NC} %-17s %5s %6s %5s %5s %11s  ${GREEN}│${NC}\n" "$model" "$port" "$ctx" "$cpu" "$mem" "$runtime"
+            print_row "$GREEN" " $(pad "$model" 18)$(pad "$port" 7)$(pad "$ctx" 7)$(pad "$cpu" 6)$(pad "$mem" 6)$(pad "$runtime" 12) "
             models_data+="$model|$port|$ctx|$cpu|$mem|$pid|$runtime"$'\n'
             model_count=$((model_count + 1))
         fi
     done <<< "$(get_running_models)"
 
-    [[ $model_count -eq 0 ]] && printf "${GREEN}│${NC} %-68s ${GREEN}│${NC}\n" "No models currently running"
-    footer_line "$GREEN"
+    [[ $model_count -eq 0 ]] && print_row "$GREEN" " $(pad "No models currently running" 68) "
+    print_footer "$GREEN"
     echo
 
     # Token Statistics Section
     if [[ $model_count -gt 0 ]]; then
-        header_line "$CYAN" "Token Statistics"
-        printf "${CYAN}│${NC} ${BOLD}%-17s %8s %8s %10s %10s${NC}   ${CYAN}│${NC}\n" "Model" "In Tok" "Out Tok" "In tok/s" "Out tok/s"
-        sep_line "$CYAN"
+        print_header "$CYAN" "Token Statistics"
+        print_row "$CYAN" " ${BOLD}$(pad "Model" 18)$(pad "In Tok" 10)$(pad "Out Tok" 10)$(pad "In tok/s" 12)$(pad "Out tok/s" 12)${NC} "
+        print_sep "$CYAN"
 
-        local has_metrics=false
         while IFS='|' read -r model port ctx cpu mem pid runtime; do
             if [[ -n "$model" ]] && [[ "$port" != "?" ]]; then
                 IFS='|' read -r prompt_tok gen_tok prompt_sec gen_sec <<< "$(get_model_metrics "$port")"
-
                 if [[ "$prompt_tok" != "N/A" ]]; then
-                    has_metrics=true
                     IFS='|' read -r in_tps out_tps <<< "$(get_instantaneous_tps "$model" "$prompt_tok" "$gen_tok")"
-
                     local fmt_prompt=$(format_number "$prompt_tok")
                     local fmt_gen=$(format_number "$gen_tok")
-
-                    local in_color=$NC
-                    local out_color=$NC
+                    local in_color=$NC out_color=$NC
                     [[ "$in_tps" != "--" ]] && [[ "$in_tps" != "0.0" ]] && in_color=$GREEN
                     [[ "$out_tps" != "--" ]] && [[ "$out_tps" != "0.0" ]] && out_color=$GREEN
-
-                    printf "${CYAN}│${NC} %-17s %8s %8s ${in_color}%10s${NC} ${out_color}%10s${NC}   ${CYAN}│${NC}\n" "$model" "$fmt_prompt" "$fmt_gen" "$in_tps" "$out_tps"
+                    print_row "$CYAN" " $(pad "$model" 18)$(pad "$fmt_prompt" 10)$(pad "$fmt_gen" 10)${in_color}$(pad "$in_tps" 12)${NC}${out_color}$(pad "$out_tps" 12)${NC} "
                 else
-                    printf "${CYAN}│${NC} %-17s ${YELLOW}%-50s${NC} ${CYAN}│${NC}\n" "$model" "(metrics not enabled)"
+                    print_row "$CYAN" " $(pad "$model" 18)${YELLOW}$(pad "(metrics not enabled)" 44)${NC} "
                 fi
             fi
         done <<< "$models_data"
 
-        footer_line "$CYAN"
+        print_footer "$CYAN"
     fi
 
     if $WATCH_MODE; then
@@ -371,7 +336,7 @@ display_status() {
     fi
 }
 
-# Main execution
+# Main
 if $WATCH_MODE; then
     tput civis
     clear
