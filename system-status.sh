@@ -217,11 +217,21 @@ print_row() {
 
 display_status() {
     local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    local title="AMD Strix Halo System Status - ${timestamp}"
+    local title_len=${#title}
+    local pad_total=$((W - title_len))
+    local pad_left=$((pad_total / 2))
+    local pad_right=$((pad_total - pad_left))
+    local left_spaces="" right_spaces=""
+    for ((i=0; i<pad_left; i++)); do left_spaces+=" "; done
+    for ((i=0; i<pad_right; i++)); do right_spaces+=" "; done
 
     # Title box
-    echo -e "${BOLD}╔══════════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BOLD}║           AMD Strix Halo System Status - ${timestamp}           ║${NC}"
-    echo -e "${BOLD}╚══════════════════════════════════════════════════════════════════════╝${NC}"
+    local border=""
+    for ((i=0; i<W; i++)); do border+="═"; done
+    echo -e "${BOLD}╔${border}╗${NC}"
+    echo -e "${BOLD}║${left_spaces}${title}${right_spaces}║${NC}"
+    echo -e "${BOLD}╚${border}╝${NC}"
     echo
 
     # GPU Section
