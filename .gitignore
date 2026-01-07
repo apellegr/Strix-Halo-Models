@@ -1,0 +1,10 @@
+# Large model files
+models/
+*.gguf
+
+# Benchmark results (generated artifacts)
+benchmarks/
+
+# Runtime files
+*.pid
+*.log
