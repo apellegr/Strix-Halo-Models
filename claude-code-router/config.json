@@ -1,0 +1,70 @@
+{
+  "LOG": true,
+  "LOG_LEVEL": "info",
+  "CLAUDE_PATH": "",
+  "HOST": "0.0.0.0",
+  "PORT": 3456,
+  "APIKEY": "sk-dummy",
+  "API_TIMEOUT_MS": "600000",
+  "PROXY_URL": "",
+  "transformers": [],
+  "Providers": [
+    {
+      "name": "local-fast",
+      "api_base_url": "http://localhost:8081/v1/chat/completions",
+      "api_key": "not-needed",
+      "models": [
+        "llama-3.2-3b"
+      ],
+      "transformer": {
+        "use": []
+      }
+    },
+    {
+      "name": "local-coder",
+      "api_base_url": "http://localhost:8082/v1/chat/completions",
+      "api_key": "not-needed",
+      "models": [
+        "qwen2.5-coder-32b"
+      ],
+      "transformer": {
+        "use": [
+          "reasoning"
+        ]
+      }
+    },
+    {
+      "name": "local-reasoning",
+      "api_base_url": "http://localhost:8083/v1/chat/completions",
+      "api_key": "not-needed",
+      "models": [
+        "deepseek-r1-32b"
+      ],
+      "transformer": {
+        "use": [
+          "reasoning"
+        ]
+      }
+    }
+  ],
+  "StatusLine": {
+    "enabled": false,
+    "currentStyle": "default",
+    "default": {
+      "modules": []
+    },
+    "powerline": {
+      "modules": []
+    }
+  },
+  "Router": {
+    "background": "local-fast,llama-3.2-3b",
+    "default": "local-coder,qwen2.5-coder-32b",
+    "think": "local-reasoning,deepseek-r1-32b",
+    "longContext": "local-coder,qwen2.5-coder-32b",
+    "longContextThreshold": 60000,
+    "webSearch": "local-fast,llama-3.2-3b",
+    "image": "local-coder,qwen2.5-coder-32b"
+  },
+  "CUSTOM_ROUTER_PATH": ""
+}

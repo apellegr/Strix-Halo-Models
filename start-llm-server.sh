@@ -39,8 +39,10 @@ CONFIG_FILE="${CONFIG_FILE:-$SCRIPT_DIR/model-configs.json}"
 DEFAULT_HOST="0.0.0.0"
 DEFAULT_PORT="8081"
 DEFAULT_THREADS="16"          # Physical cores (SMT2 system)
-DEFAULT_BATCH_SIZE="512"
+DEFAULT_BATCH_SIZE="1024"     # Larger batch for faster prompt processing
 DEFAULT_CTX_SIZE="4096"
+DEFAULT_PARALLEL="1"          # Number of parallel slots (reduce for faster individual requests)
+DEFAULT_FLASH_ATTN="on"       # Flash attention for speed
 
 #===============================================================================
 # ROCm/GPU Environment for Strix Halo Unified Memory
@@ -469,6 +471,9 @@ start_model() {
         rm -f "$ctx_file"
     fi
 
+    # Use batch size from config if available
+    local batch_size="${saved_batch:-$DEFAULT_BATCH_SIZE}"
+
     # Start the server
     nohup "$LLAMA_SERVER" \
         --model "$model_path" \
@@ -477,7 +482,9 @@ start_model() {
         --n-gpu-layers "$gpu_layers" \
         --ctx-size "$ctx_size" \
         --threads "$DEFAULT_THREADS" \
-        --batch-size "$DEFAULT_BATCH_SIZE" \
+        --batch-size "$batch_size" \
+        --parallel "$DEFAULT_PARALLEL" \
+        --flash-attn "$DEFAULT_FLASH_ATTN" \
         --no-mmap \
         --alias "$model_name" \
         $extra_args \
@@ -603,6 +610,9 @@ run_model_foreground() {
         rm -f "$ctx_file"
     fi
 
+    # Use batch size from config if available
+    local batch_size="${saved_batch:-$DEFAULT_BATCH_SIZE}"
+
     # Exec replaces this process with llama-server
     exec "$LLAMA_SERVER" \
         --model "$model_path" \
@@ -611,7 +621,9 @@ run_model_foreground() {
         --n-gpu-layers "$gpu_layers" \
         --ctx-size "$ctx_size" \
         --threads "$DEFAULT_THREADS" \
-        --batch-size "$DEFAULT_BATCH_SIZE" \
+        --batch-size "$batch_size" \
+        --parallel "$DEFAULT_PARALLEL" \
+        --flash-attn "$DEFAULT_FLASH_ATTN" \
         --no-mmap \
         --alias "$model_name" \
         $extra_args
