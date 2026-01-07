@@ -58,6 +58,58 @@ cp build/bin/llama-* ~/.local/bin/
 curl http://localhost:8081/v1/models
 ```
 
+## Downloading Models
+
+The `download_strix_halo_models.sh` script downloads GGUF models optimized for Strix Halo's 128GB unified memory. It uses Hugging Face's fast transfer protocol for efficient downloads.
+
+### Quick Download
+
+```bash
+# Make executable
+chmod +x download_strix_halo_models.sh
+
+# Download essential pack (best model per category, ~150GB)
+./download_strix_halo_models.sh --essential
+
+# Or run interactive menu
+./download_strix_halo_models.sh
+```
+
+### Available Categories
+
+| Category | Size Range | Storage | Description |
+|----------|------------|---------|-------------|
+| `--fast` | 3-9B | ~25GB | Quick responses (Llama 3.2, Qwen 2.5 7B, etc.) |
+| `--balanced` | 14-32B | ~80GB | Quality/speed balance (Qwen 32B, DeepSeek R1 32B) |
+| `--large` | 70B | ~130GB | High capability (Llama 3.3 70B, Qwen 72B) |
+| `--massive` | 100B+ | ~220GB | Frontier models (Qwen 3 235B, GPT-OSS 120B) |
+| `--coding` | Various | ~80GB | Programming optimized (Qwen Coder, DeepSeek) |
+| `--vision` | Various | ~20GB | Multimodal (LLaVA, Qwen VL, Pixtral) |
+| `--specialized` | Various | ~125GB | RAG, MoE, etc. (Command R+, Mixtral) |
+| `--essential` | Various | ~150GB | Best model per category |
+| `--all` | All | ~600GB+ | Everything |
+
+### Environment Variables
+
+```bash
+# Custom download directory (default: ~/llm-models)
+MODELS_DIR=/mnt/nvme/models ./download_strix_halo_models.sh --essential
+
+# Preview downloads without downloading
+DRY_RUN=1 ./download_strix_halo_models.sh --all
+
+# Disable fast HF transfer (if having issues)
+ENABLE_HF_TRANSFER=0 ./download_strix_halo_models.sh --fast
+```
+
+### Notes
+
+- Uses `huggingface_hub` with `hf_transfer` for fast downloads (auto-installs if missing)
+- Skips files that already exist
+- Supports multi-part models (automatically downloads all parts)
+- Sources models from verified repos (bartowski, unsloth, TheBloke)
+- See [MODELS.md](MODELS.md) for detailed model information and performance benchmarks
+
 ## Directory Structure
 
 ```
@@ -74,14 +126,15 @@ Strix-Halo-Models/
 │   ├── install.sh             # Router installation script
 │   └── README.md              # Setup documentation
 ├── benchmarks/                # Benchmark results
-├── start-llm-server.sh        # Server management script
-├── start-claude-code-models.sh # Start models for Claude Code
-├── benchmark-model.sh         # Benchmarking tool
-├── benchmark-all-models.sh    # Batch benchmark script
-├── model-configs.json         # Optimized configurations
-├── gpu-power-config.sh        # GPU power profile configuration
-├── .env                       # Environment configuration
-└── install-llama-cpp.sh       # llama.cpp installer
+├── start-llm-server.sh           # Server management script
+├── start-claude-code-models.sh   # Start models for Claude Code
+├── benchmark-model.sh            # Benchmarking tool
+├── benchmark-all-models.sh       # Batch benchmark script
+├── model-configs.json            # Optimized configurations
+├── download_strix_halo_models.sh # Model downloader script
+├── gpu-power-config.sh           # GPU power profile configuration
+├── .env                          # Environment configuration
+└── install-llama-cpp.sh          # llama.cpp installer
 ```
 
 ---
