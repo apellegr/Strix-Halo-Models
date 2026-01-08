@@ -6,11 +6,11 @@ This guide explains how to run Claude Code with local LLM models using llama.cpp
 
 The setup routes Claude Code API requests to local llama.cpp servers running different models optimized for specific tasks:
 
-| Port | Model | Role | Context | GPU Layers |
-|------|-------|------|---------|------------|
-| 8081 | llama-3.2-3b | Background tasks (titles, summaries) | 8K | 50 |
-| 8082 | hermes-4-14b | Default coding tasks | 32K | 80 |
-| 8083 | hermes-4-70b | Complex reasoning | 64K | 40 |
+| Port | Model | Role | Context | GPU Layers | Speed |
+|------|-------|------|---------|------------|-------|
+| 8081 | llama-3.2-3b | Background tasks | 32K | 50 | ~50 tok/s |
+| 8082 | hermes-4-14b | Default coding | 32K | 80 | ~20 tok/s |
+| 8083 | hermes-4-70b | Complex reasoning | 64K | 50 | ~3.4 tok/s |
 
 The **claude-code-router** (port 3456) sits in front of these servers and routes requests based on the task type.
 
@@ -24,7 +24,7 @@ The **claude-code-router** (port 3456) sits in front of these servers and routes
 ### Install claude-code-router
 
 ```bash
-npm install -g @anthropic/claude-code
+npm install -g @anthropic-ai/claude-code
 npm install -g @musistudio/claude-code-router
 ```
 
@@ -52,7 +52,17 @@ This starts:
 - hermes-4-70b on port 8083
 - claude-code-router on port 3456
 
-### 2. Run Claude Code
+### 2. Install the Transformer Plugin
+
+Copy the transformer plugin to enable proper responses from Hermes models:
+
+```bash
+mkdir -p ~/.claude-code-router/plugins
+cp claude-code-router/hermes-direct.js ~/.claude-code-router/plugins/
+cp claude-code-router/config.json ~/.claude-code-router/config.json
+```
+
+### 3. Run Claude Code
 
 ```bash
 export ANTHROPIC_BASE_URL=http://localhost:3456
@@ -105,11 +115,21 @@ Defines optimized settings for each model:
 
 ```json
 {
+  "llama-3.2-3b": {
+    "gpu_layers": 50,
+    "ctx_size": 32768,
+    "batch_size": 2048
+  },
+  "hermes-4-14b": {
+    "gpu_layers": 80,
+    "ctx_size": 32768,
+    "batch_size": 1024
+  },
   "hermes-4-70b": {
-    "gpu_layers": 40,
+    "gpu_layers": 50,
     "ctx_size": 65536,
     "batch_size": 2048,
-    "notes": "Reduced GPU layers to avoid VRAM OOM when running with other models."
+    "notes": "50 GPU layers balances speed vs memory for multi-model setup"
   }
 }
 ```
@@ -129,17 +149,20 @@ Router configuration that maps task types to providers:
     {
       "name": "local-fast",
       "api_base_url": "http://localhost:8081/v1/chat/completions",
-      "models": ["llama-3.2-3b"]
+      "models": ["llama-3.2-3b"],
+      "transformer": { "use": [] }
     },
     {
       "name": "local-coder",
       "api_base_url": "http://localhost:8082/v1/chat/completions",
-      "models": ["hermes-4-14b"]
+      "models": ["hermes-4-14b"],
+      "transformer": { "use": [] }
     },
     {
       "name": "local-reasoning",
       "api_base_url": "http://localhost:8083/v1/chat/completions",
-      "models": ["hermes-4-70b"]
+      "models": ["hermes-4-70b"],
+      "transformer": { "use": ["hermes-direct"] }
     }
   ],
   "Router": {
@@ -160,18 +183,51 @@ The router config is stored at `~/.claude-code-router/config.json`. Copy from th
 cp claude-code-router/config.json ~/.claude-code-router/config.json
 ```
 
+## Transformer Plugins
+
+### hermes-direct.js
+
+The `hermes-direct` transformer solves an issue where Hermes 4 70B outputs internal monologue (text prefixed with asterisks like `*Hmm...`) instead of direct responses.
+
+**What it does:**
+1. Injects a system prompt instructing the model to respond directly
+2. Strips any remaining thinking patterns from responses
+
+**Installation:**
+```bash
+cp claude-code-router/hermes-direct.js ~/.claude-code-router/plugins/
+```
+
+The transformer is enabled in the router config for the `local-reasoning` provider.
+
 ## Router Task Types
 
-| Task Type | Description | Recommended Model |
-|-----------|-------------|-------------------|
-| `background` | Titles, summaries, quick tasks | Small, fast model (3B) |
-| `default` | General coding, file edits | Medium model with tool support (14B) |
-| `think` | Complex reasoning, planning | Large model (70B) |
-| `longContext` | Requests > longContextThreshold | Model with large context |
-| `webSearch` | Web search queries | Fast model |
-| `image` | Image analysis | Vision-capable model |
+| Task Type | Description | Model | Speed |
+|-----------|-------------|-------|-------|
+| `background` | Titles, summaries, quick tasks | llama-3.2-3b | ~50 tok/s |
+| `default` | General coding, file edits | hermes-4-14b | ~20 tok/s |
+| `think` | Complex reasoning, planning | hermes-4-70b | ~3.4 tok/s |
+| `longContext` | Requests > 60K tokens | hermes-4-14b | ~20 tok/s |
+| `webSearch` | Web search queries | llama-3.2-3b | ~50 tok/s |
+| `image` | Image analysis | hermes-4-14b | ~20 tok/s |
 
 ## Troubleshooting
+
+### Empty Output from hermes-4-70b
+
+If hermes-4-70b returns empty responses, ensure the `hermes-direct` transformer is installed:
+
+```bash
+# Check if plugin exists
+ls ~/.claude-code-router/plugins/hermes-direct.js
+
+# If missing, copy it
+cp claude-code-router/hermes-direct.js ~/.claude-code-router/plugins/
+
+# Restart the router
+pkill -f claude-code-router
+ccr start &
+```
 
 ### Context Size Errors
 
@@ -193,7 +249,9 @@ request (37245 tokens) exceeds the available context size (32768 tokens)
 cudaMalloc failed: out of memory
 ```
 
-**Solution:** Reduce `gpu_layers` for the model. For 70B models on 128GB systems, 40 GPU layers works well when running multiple models.
+**Solution:** Reduce `gpu_layers` for the model. For 70B models on 128GB systems:
+- 50 GPU layers works well when running 3 models simultaneously
+- 60+ layers may cause OOM with large context windows
 
 ### 503 "Loading Model" Errors
 
@@ -213,15 +271,27 @@ Large prompts take time, especially on 70B models with reduced GPU layers.
 - Route long-context requests to a faster model
 - Use the 14B model for most tasks, reserve 70B for complex reasoning
 
+## Performance Benchmarks
+
+Tested on AMD Ryzen AI Max+ 395 with 128GB unified memory:
+
+| Model | Prompt Processing | Generation | Memory |
+|-------|-------------------|------------|--------|
+| llama-3.2-3b | 350-700 tok/s | 40-50 tok/s | ~3GB |
+| hermes-4-14b | 220-7800 tok/s* | 20 tok/s | ~14GB |
+| hermes-4-70b | 78-112 tok/s | 3.4 tok/s | ~52GB |
+
+*Cached prompts process much faster
+
 ## Memory Usage
 
 Approximate memory usage for the default configuration:
 
-| Model | Model Size | KV Cache (64K ctx) | Total |
-|-------|------------|-------------------|-------|
-| llama-3.2-3b | ~2GB | ~0.5GB | ~3GB |
-| hermes-4-14b | ~10GB | ~4GB | ~14GB |
-| hermes-4-70b | ~42GB | ~10GB | ~52GB |
+| Model | Model Size | KV Cache | Total |
+|-------|------------|----------|-------|
+| llama-3.2-3b (32K ctx) | ~2GB | ~1GB | ~3GB |
+| hermes-4-14b (32K ctx) | ~10GB | ~4GB | ~14GB |
+| hermes-4-70b (64K ctx) | ~42GB | ~10GB | ~52GB |
 | **Total** | | | **~70GB** |
 
 This leaves ~50GB free on a 128GB system for other applications.
@@ -248,12 +318,36 @@ Then update `~/.claude-code-router/config.json` to match.
 2. Download the model with `download_strix_halo_models.sh` or manually
 3. Start with `./start-llm-server.sh <model-name> <port>`
 
+### Creating Custom Transformers
+
+Transformers modify requests/responses for specific providers. See `claude-code-router/hermes-direct.js` for an example.
+
+Transformer interface:
+```javascript
+class MyTransformer {
+  name = 'my-transformer';
+
+  async transformRequestIn(request, provider) {
+    // Modify request.body
+    return { body: request.body, config: {} };
+  }
+
+  async transformResponseOut(response, provider) {
+    // Modify response
+    return response;
+  }
+}
+module.exports = MyTransformer;
+```
+
 ## Logs
 
 Server logs are stored in `~/.llm-servers/`:
 
 ```bash
 tail -f ~/.llm-servers/hermes-4-70b.log    # Watch model logs
+tail -f ~/.llm-servers/hermes-4-14b.log
+tail -f ~/.llm-servers/llama-3.2-3b.log
 tail -f /tmp/ccr.log                        # Watch router logs
 ```
 
@@ -264,4 +358,9 @@ Use the system status script to monitor everything:
 ```bash
 ./system-status.sh         # Snapshot
 ./system-status.sh -w      # Watch mode
+```
+
+Check model status:
+```bash
+./start-llm-server.sh status
 ```
