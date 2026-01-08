@@ -39,11 +39,11 @@ print_warning() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 print_error()   { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # Models configuration for Claude Code
-# Format: model_name:role
+# Format: model_name:port:role
 CLAUDE_CODE_MODELS=(
-    "llama-3.2-3b:background"
-    "qwen2.5-coder-32b:default"
-    "deepseek-r1-32b:reasoning"
+    "llama-3.2-3b:8081:background"
+    "hermes-4-14b:8082:default"
+    "hermes-4-70b:8083:reasoning"
 )
 
 start_models() {
@@ -52,11 +52,11 @@ start_models() {
     local failed=0
 
     for model_config in "${CLAUDE_CODE_MODELS[@]}"; do
-        IFS=':' read -r model_name role <<< "$model_config"
+        IFS=':' read -r model_name port role <<< "$model_config"
 
-        print_info "Starting $model_name ($role)..."
+        print_info "Starting $model_name on port $port ($role)..."
 
-        if ! "$SCRIPT_DIR/start-llm-server.sh" "$model_name"; then
+        if ! "$SCRIPT_DIR/start-llm-server.sh" "$model_name" "$port"; then
             print_error "Failed to start $model_name"
             failed=$((failed + 1))
         fi
@@ -131,9 +131,10 @@ show_summary() {
     print_header "Claude Code Configuration"
 
     echo "Models running:"
-    echo "  Port 8081: llama-3.2-3b (background tasks)"
-    echo "  Port 8082: qwen2.5-coder-32b (main coding)"
-    echo "  Port 8083: deepseek-r1-32b (reasoning)"
+    for model_config in "${CLAUDE_CODE_MODELS[@]}"; do
+        IFS=':' read -r model_name port role <<< "$model_config"
+        echo "  Port $port: $model_name ($role)"
+    done
     echo ""
 
     # Check router

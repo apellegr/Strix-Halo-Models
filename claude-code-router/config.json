@@ -25,12 +25,10 @@
       "api_base_url": "http://localhost:8082/v1/chat/completions",
       "api_key": "not-needed",
       "models": [
-        "qwen2.5-coder-32b"
+        "hermes-4-14b"
       ],
       "transformer": {
-        "use": [
-          "reasoning"
-        ]
+        "use": []
       }
     },
     {
@@ -38,12 +36,10 @@
       "api_base_url": "http://localhost:8083/v1/chat/completions",
       "api_key": "not-needed",
       "models": [
-        "deepseek-r1-32b"
+        "hermes-4-70b"
       ],
       "transformer": {
-        "use": [
-          "reasoning"
-        ]
+        "use": []
       }
     }
   ],
@@ -59,12 +55,12 @@
   },
   "Router": {
     "background": "local-fast,llama-3.2-3b",
-    "default": "local-coder,qwen2.5-coder-32b",
-    "think": "local-reasoning,deepseek-r1-32b",
-    "longContext": "local-coder,qwen2.5-coder-32b",
+    "default": "local-coder,hermes-4-14b",
+    "think": "local-reasoning,hermes-4-70b",
+    "longContext": "local-coder,hermes-4-14b",
     "longContextThreshold": 60000,
     "webSearch": "local-fast,llama-3.2-3b",
-    "image": "local-coder,qwen2.5-coder-32b"
+    "image": "local-coder,hermes-4-14b"
   },
   "CUSTOM_ROUTER_PATH": ""
 }

@@ -361,6 +361,13 @@ download_vision_models() {
 download_specialized_models() {
     print_header "SPECIALIZED MODELS - Specific Use Cases"
 
+    # Hermes 4 14B - NousResearch's fast tool-use model (bartowski - single file)
+    # Specifically trained for function calling, JSON schema adherence, and structured outputs
+    download_model "bartowski/NousResearch_Hermes-4-14B-GGUF" \
+        "NousResearch_Hermes-4-14B-Q5_K_M.gguf" \
+        "specialized/hermes-4-14b" \
+        "Hermes 4 14B (Q5_K_M) - ~10GB, fast tool/function calling"
+
     # Hermes 4 70B - NousResearch's tool-use optimized model (bartowski - single file)
     # Specifically trained for function calling, JSON schema adherence, and structured outputs
     download_model "bartowski/NousResearch_Hermes-4-70B-GGUF" \
