@@ -39,7 +39,7 @@
         "hermes-4-70b"
       ],
       "transformer": {
-        "use": []
+        "use": ["hermes-direct"]
       }
     }
   ],

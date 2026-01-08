@@ -32,8 +32,8 @@
     },
     "llama-3.2-3b": {
       "gpu_layers": 50,
-      "ctx_size": 8192,
-      "batch_size": 1024,
+      "ctx_size": 32768,
+      "batch_size": 2048,
       "benchmark": {
         "pp_tokens_per_sec": 2154.124430,
         "tg_tokens_per_sec": 68.762771,
@@ -70,10 +70,10 @@
       "notes": "MoE model with 30B params, 3B active per token. Should be much faster than dense 32B models."
     },
     "hermes-4-70b": {
-      "gpu_layers": 40,
+      "gpu_layers": 50,
       "ctx_size": 65536,
       "batch_size": 2048,
-      "notes": "NousResearch Hermes 4 70B - optimized for tool/function calling and structured outputs. ~42GB model. Reduced GPU layers to avoid VRAM OOM when running with other models."
+      "notes": "NousResearch Hermes 4 70B - optimized for tool/function calling and structured outputs. ~42GB model."
     },
     "hermes-4-14b": {
       "gpu_layers": 80,
