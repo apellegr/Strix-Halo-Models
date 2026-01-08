@@ -7,7 +7,12 @@
   "APIKEY": "sk-dummy",
   "API_TIMEOUT_MS": "600000",
   "PROXY_URL": "",
-  "transformers": [],
+  "transformers": [
+    {
+      "name": "hermes-tool-adapter",
+      "path": "~/.claude-code-router/plugins/hermes-tool-adapter.js"
+    }
+  ],
   "Providers": [
     {
       "name": "local-fast",
@@ -28,7 +33,7 @@
         "hermes-4-14b"
       ],
       "transformer": {
-        "use": []
+        "use": ["hermes-tool-adapter"]
       }
     },
     {
@@ -39,7 +44,7 @@
         "hermes-4-70b"
       ],
       "transformer": {
-        "use": ["hermes-direct"]
+        "use": ["hermes-tool-adapter"]
       }
     }
   ],

@@ -185,9 +185,31 @@ cp claude-code-router/config.json ~/.claude-code-router/config.json
 
 ## Transformer Plugins
 
-### hermes-direct.js
+### hermes-tool-adapter.js (Recommended)
 
-The `hermes-direct` transformer solves an issue where Hermes 4 70B outputs internal monologue (text prefixed with asterisks like `*Hmm...`) instead of direct responses.
+The `hermes-tool-adapter` transformer enables local models to work with Claude Code's tool calling system. It converts free-form JSON tool call responses into the OpenAI function_call format that claude-code-router can then convert to Claude API format.
+
+**What it does:**
+1. Injects a system prompt instructing the model on the expected JSON format for tool calls
+2. Parses various JSON formats the model might output:
+   - `{"tool_name": "Read", "parameters": {...}}`
+   - `{"Bash": {"command": "ls"}}`
+   - `{"tool_call": {...}}`
+3. Converts parsed tool calls to OpenAI's `tool_calls` format
+4. Strips thinking patterns from non-tool responses
+
+**Installation:**
+```bash
+mkdir -p ~/.claude-code-router/plugins
+cp claude-code-router/hermes-tool-adapter.js ~/.claude-code-router/plugins/
+cp claude-code-router/config.json ~/.claude-code-router/config.json
+```
+
+The transformer is enabled in the router config for both `local-coder` and `local-reasoning` providers.
+
+### hermes-direct.js (Legacy)
+
+The `hermes-direct` transformer is a simpler version that only prevents internal monologue. Use `hermes-tool-adapter` instead for full tool support.
 
 **What it does:**
 1. Injects a system prompt instructing the model to respond directly
@@ -197,8 +219,6 @@ The `hermes-direct` transformer solves an issue where Hermes 4 70B outputs inter
 ```bash
 cp claude-code-router/hermes-direct.js ~/.claude-code-router/plugins/
 ```
-
-The transformer is enabled in the router config for the `local-reasoning` provider.
 
 ## Router Task Types
 
@@ -213,16 +233,33 @@ The transformer is enabled in the router config for the `local-reasoning` provid
 
 ## Troubleshooting
 
+### Tool Calls Not Working (Edit Errors)
+
+If Claude Code fails to execute tools (Edit, Read, Bash, etc.) with errors like "Error editing file", install the `hermes-tool-adapter` transformer:
+
+```bash
+# Install the transformer
+mkdir -p ~/.claude-code-router/plugins
+cp claude-code-router/hermes-tool-adapter.js ~/.claude-code-router/plugins/
+
+# Update config (make sure transformers array includes hermes-tool-adapter)
+cp claude-code-router/config.json ~/.claude-code-router/config.json
+
+# Restart the router
+pkill -f claude-code-router
+ccr start &
+```
+
 ### Empty Output from hermes-4-70b
 
-If hermes-4-70b returns empty responses, ensure the `hermes-direct` transformer is installed:
+If hermes-4-70b returns empty responses, ensure the `hermes-tool-adapter` transformer is installed (it replaces the old `hermes-direct` transformer):
 
 ```bash
 # Check if plugin exists
-ls ~/.claude-code-router/plugins/hermes-direct.js
+ls ~/.claude-code-router/plugins/hermes-tool-adapter.js
 
 # If missing, copy it
-cp claude-code-router/hermes-direct.js ~/.claude-code-router/plugins/
+cp claude-code-router/hermes-tool-adapter.js ~/.claude-code-router/plugins/
 
 # Restart the router
 pkill -f claude-code-router
