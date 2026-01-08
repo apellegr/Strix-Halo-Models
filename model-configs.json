@@ -71,8 +71,8 @@
     },
     "hermes-4-70b": {
       "gpu_layers": 40,
-      "ctx_size": 32768,
-      "batch_size": 512,
+      "ctx_size": 65536,
+      "batch_size": 2048,
       "notes": "NousResearch Hermes 4 70B - optimized for tool/function calling and structured outputs. ~42GB model. Reduced GPU layers to avoid VRAM OOM when running with other models."
     },
     "hermes-4-14b": {
