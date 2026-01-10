@@ -53,9 +53,18 @@ if $SHOW_HELP; then
     exit 0
 fi
 
-# Paths
-GPU_PATH="/sys/class/drm/card0/device"
-GPU_HWMON="/sys/class/drm/card0/device/hwmon/hwmon5"
+# Auto-detect GPU card (find the one with gpu_busy_percent)
+GPU_CARD=""
+for card in /sys/class/drm/card*/device/gpu_busy_percent; do
+    if [[ -f "$card" ]]; then
+        GPU_CARD=$(dirname "$card")
+        break
+    fi
+done
+[[ -z "$GPU_CARD" ]] && GPU_CARD="/sys/class/drm/card1/device"
+
+GPU_PATH="$GPU_CARD"
+GPU_HWMON=$(ls -d "$GPU_CARD"/hwmon/hwmon* 2>/dev/null | head -1)
 
 # Helper functions
 read_dpm_clock() {
