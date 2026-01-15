@@ -2,8 +2,10 @@
 models/
 *.gguf
 
-# Benchmark results (generated artifacts)
-benchmarks/
+# Benchmark results (generated JSON files)
+benchmarks/*.json
+# Re-include bandwidth benchmark source code
+!benchmarks/bandwidth/
 
 # Runtime files
 *.pid

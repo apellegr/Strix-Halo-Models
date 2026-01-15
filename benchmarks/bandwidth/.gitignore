@@ -1,0 +1,9 @@
+# Compiled binaries
+mem_bandwidth
+gpu_bandwidth
+gpu_bandwidth_large
+transfer_bandwidth
+hip_alloc_test
+
+# Object files
+*.o

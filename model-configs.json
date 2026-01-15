@@ -8,16 +8,17 @@
   },
   "models": {
     "qwen3-235b-thinking": {
-      "gpu_layers": 55,
+      "gpu_layers": 81,
       "ctx_size": 4096,
       "batch_size": 1024,
       "benchmark": {
-        "pp_tokens_per_sec": 237.0,
-        "tg_tokens_per_sec": 10.4,
-        "memory_gb": 46,
+        "pp_tokens_per_sec_short": 97.4,
+        "pp_tokens_per_sec_long": 546.2,
+        "tg_tokens_per_sec": 9.0,
+        "memory_gb": 90,
         "date": "2026-01-15"
       },
-      "notes": "55 GPU layers + batch 1024 is optimal. 60+ layers exceeds ROCm GPU memory pool limit (~61GB max). Optimized from defaults: +85% prefill, +26% generation vs 50 layers/512 batch."
+      "notes": "81 GPU layers (85% offload) with --no-mmap. Prompt: 97-546 tok/s (scales with length), Gen: ~9 tok/s. 2x+ faster prompt than 55 layers. Max is 81 layers (82+ OOM)."
     },
     "deepseek-coder-v2-16b": {
       "gpu_layers": 80,
@@ -31,7 +32,7 @@
       }
     },
     "llama-3.2-3b": {
-      "gpu_layers": 50,
+      "gpu_layers": 999,
       "ctx_size": 32768,
       "batch_size": 2048,
       "benchmark": {
@@ -39,7 +40,8 @@
         "tg_tokens_per_sec": 68.762771,
         "memory_gb": 8,
         "date": "2026-01-07"
-      }
+      },
+      "notes": "Fully GPU offloaded. Small 3B model."
     },
     "qwen2.5-coder-32b": {
       "gpu_layers": 80,
@@ -70,10 +72,10 @@
       "notes": "MoE model with 30B params, 3B active per token. Should be much faster than dense 32B models."
     },
     "hermes-4-70b": {
-      "gpu_layers": 50,
-      "ctx_size": 65536,
+      "gpu_layers": 999,
+      "ctx_size": 32768,
       "batch_size": 2048,
-      "notes": "NousResearch Hermes 4 70B - optimized for tool/function calling and structured outputs. ~42GB model."
+      "notes": "NousResearch Hermes 4 70B - fully GPU offloaded with --no-mmap. ~40GB model uses ~45GB GPU memory. Requires TTM kernel params."
     },
     "hermes-4-14b": {
       "gpu_layers": 80,

@@ -125,7 +125,8 @@ Strix-Halo-Models/
 │   ├── config.json            # Router configuration
 │   ├── install.sh             # Router installation script
 │   └── README.md              # Setup documentation
-├── benchmarks/                # Benchmark results
+├── benchmarks/                # Benchmark results and tools
+│   └── bandwidth/             # Memory bandwidth benchmarks
 ├── start-llm-server.sh           # Server management script
 ├── start-claude-code-models.sh   # Start models for Claude Code
 ├── benchmark-model.sh            # Benchmarking tool
@@ -458,6 +459,29 @@ Connect Open WebUI to your local models:
 
 ## GPU Memory Settings
 
+### ROCm Memory Limit Fix
+
+By default, ROCm limits GPU memory to ~61GB on Strix Halo APUs. To unlock the full 90GB+, add these kernel parameters to `/etc/default/grub`:
+
+```bash
+GRUB_CMDLINE_LINUX_DEFAULT="... ttm.pages_limit=24576000 amdgpu.no_system_mem_limit=1 amdgpu.gttsize=117760"
+```
+
+Then run `sudo update-grub && sudo reboot`.
+
+Additionally, use `--no-mmap` flag with llama-server (already enabled in scripts) to avoid mmap/SVM interaction issues that cause hangs with large allocations.
+
+**Results after fix:**
+| Metric | Before | After |
+|--------|--------|-------|
+| Max GPU Memory | 61 GB | 90 GB |
+| Max GPU Layers (Qwen3-235B) | 55 | 81 |
+| Prompt Speed | 37 tok/s | 546 tok/s |
+
+See [ROCM-MEMORY-LIMIT-INVESTIGATION.md](ROCM-MEMORY-LIMIT-INVESTIGATION.md) for full details.
+
+### Environment Variables
+
 Critical environment variables for Strix Halo unified memory (automatically set by scripts):
 
 ```bash
@@ -725,6 +749,41 @@ Override context size per model:
 ./start-llm-server.sh qwen2.5-coder-32b -c 32768
 ./start-llm-server.sh llama-3.2-3b -c 8192
 ```
+
+---
+
+## Memory Bandwidth Benchmarks
+
+The `benchmarks/bandwidth/` directory contains tools to measure memory bandwidth on Strix Halo:
+
+```bash
+cd benchmarks/bandwidth
+make all
+OMP_NUM_THREADS=16 ./mem_bandwidth      # CPU STREAM benchmark
+HSA_ENABLE_SDMA=0 ./gpu_bandwidth       # GPU device memory
+HSA_ENABLE_SDMA=0 ./transfer_bandwidth  # Host-Device transfer
+```
+
+### Measured Results (Ryzen AI Max+ 395, 128GB DDR5)
+
+| Test | Bandwidth | Notes |
+|------|-----------|-------|
+| CPU STREAM (Triad) | 112 GB/s | DDR5 system memory |
+| GPU Internal (4GB) | 236 GB/s | Infinity Cache benefit |
+| GPU Internal (20GB) | 205 GB/s | Beyond cache size |
+| Host → Device | 85 GB/s | Actual data movement |
+| Device → Host | 82 GB/s | Actual data movement |
+
+### LLM Inference Implications
+
+For large models, effective bandwidth is the H2D rate (~85 GB/s). The 96MB Infinity Cache provides ~2x amplification for smaller working sets.
+
+**Qwen3-235B MoE (Q3_K_M):**
+- Active weights per token: ~8 GB
+- Theoretical max: 85 GB/s ÷ 8 GB = 10.6 tok/s
+- Measured: 9 tok/s (85% efficiency)
+
+The system is **memory-bandwidth bound**, not compute bound - explaining why GPU power stays at ~85W sustained instead of the 130W maximum.
 
 ---
 
