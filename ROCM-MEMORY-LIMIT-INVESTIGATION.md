@@ -199,6 +199,297 @@ export HSA_OVERRIDE_GFX_VERSION=11.5.1
 - Similar issues reported for other ROCm versions on integrated graphics
 - The limit may be defined in `hip/src/hip_memory.cpp` or device property initialization code
 
+## Investigation Update: 96GB BIOS VRAM Allocation (2026-01-15)
+
+### Experiment: BIOS VRAM Carveout
+
+Changed BIOS setting to allocate 96GB to the GPU as dedicated VRAM.
+
+#### Results - WORSE Performance
+
+| Metric | Before (Default) | After (96GB BIOS) |
+|--------|------------------|-------------------|
+| System RAM visible | 128 GB | 32 GB |
+| Kernel VRAM | 0.5 GB | 96 GB |
+| Kernel GTT | 115 GB | 115 GB |
+| **HIP reported** | **61.35 GB** | **15.24 GB** |
+
+The 96GB BIOS allocation **reduced** the HIP memory limit from 61GB to 15GB!
+
+#### Root Cause Discovery
+
+The memory limit comes from multiple layers:
+
+1. **TTM pages_limit** - The TTM kernel module sets `pages_limit` based on system RAM
+   ```
+   /sys/module/ttm/parameters/pages_limit = 3995187 pages = 15.24 GB
+   ```
+
+2. **KFD Memory Banks** - KFD exposes this as the GPU memory pool
+   ```
+   /sys/class/kfd/kfd/topology/nodes/1/mem_banks/0/properties:
+   heap_type 1        # GTT (not local VRAM!)
+   size_in_bytes 16364285952  # = 15.24 GB
+   ```
+
+3. **KFD local_mem_size = 0** - The 96GB VRAM carveout is NOT exposed as local GPU memory
+   ```
+   /sys/class/kfd/kfd/topology/nodes/1/properties:
+   local_mem_size 0   # Should be 96GB but shows 0!
+   ```
+
+4. **HSA/HIP Memory Pools** - rocminfo shows GPU pools at 15.24 GB
+   ```
+   Pool 1: Size 15980748 KB = 15.24 GB (COARSE GRAINED)
+   Pool 2: Size 15980748 KB = 15.24 GB
+   ```
+
+#### The Formula
+
+TTM calculates: `pages_limit = (system_RAM / 2) / 4KB`
+
+With 96GB carved out for GPU:
+- Remaining system RAM = 32 GB
+- TTM pages_limit = 32GB / 2 = 16GB ≈ 15.24 GB (after overhead)
+
+The BIOS VRAM carveout is visible to the kernel driver but **NOT** to KFD/HSA/HIP stack.
+
+#### Key Insight
+
+The ROCm stack treats Strix Halo as an APU with **no dedicated VRAM** regardless of BIOS settings. It always calculates GPU memory based on remaining system RAM, not the actual VRAM allocation.
+
+### Next Step: Kernel Parameters
+
+Testing these boot parameters to bypass the limit:
+
+```bash
+# In /etc/default/grub GRUB_CMDLINE_LINUX_DEFAULT:
+amdgpu.no_system_mem_limit=1 ttm.pages_limit=24576000
+```
+
+Where:
+- `amdgpu.no_system_mem_limit=1` - Disables artificial system memory limit
+- `ttm.pages_limit=24576000` - Sets TTM limit to 96GB (24576000 × 4KB = 96GB)
+
+#### Commands to Apply
+
+```bash
+sudo sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT="text iommu=pt amdgpu.gttsize=117760 amdgpu.no_system_mem_limit=1 ttm.pages_limit=24576000"/' /etc/default/grub
+sudo update-grub
+sudo reboot
+```
+
+#### After Reboot - Verification Commands
+
+```bash
+# Check TTM limit
+cat /sys/module/ttm/parameters/pages_limit
+
+# Check KFD memory
+cat /sys/class/kfd/kfd/topology/nodes/1/mem_banks/0/properties
+
+# Run HIP memory test
+/tmp/hip_mem_test
+
+# Check rocm-smi
+rocm-smi --showmeminfo vram gtt all
+```
+
+## Investigation Update: TTM Kernel Params with 96GB BIOS Carveout (2026-01-15)
+
+### Test Configuration
+
+Applied kernel parameters with 96GB BIOS VRAM allocation still active:
+
+```
+BOOT_IMAGE=/boot/vmlinuz-6.18.1-061801-generic root=UUID=... ro text iommu=pt \
+  amdgpu.gttsize=117760 amdgpu.no_system_mem_limit=1 ttm.pages_limit=24576000
+```
+
+### Results: TTM Limit Works, But BIOS Carveout Doesn't
+
+| Metric | Value |
+|--------|-------|
+| System RAM visible | 30 GB (96GB carved out) |
+| TTM pages_limit | 24576000 (96GB) |
+| KFD mem_banks size | 100663296000 bytes = **93.75 GB** ✓ |
+| KFD local_mem_size | **0** (VRAM not exposed!) |
+| rocm-smi VRAM | 96 GB (kernel sees it) |
+| rocm-smi GTT | 115 GB |
+| HIP Total | 100.66 GB |
+| HIP Free | **30.61 GB** |
+| Max allocation | **31.47 GB** |
+
+### Key Insight: BIOS Carveout Not Usable by HIP
+
+The 96GB BIOS VRAM allocation is visible to the kernel driver (`rocm-smi` shows it), but:
+
+1. **KFD exposes `local_mem_size=0`** - the VRAM isn't recognized as local GPU memory
+2. **HIP can only use GTT pool** - limited to remaining system RAM (~30GB)
+3. **Result: WORSE than default** - 31GB max vs original 61GB
+
+The BIOS carveout reduces system RAM without providing usable GPU memory.
+
+### Conclusion: Revert BIOS, Keep TTM Params
+
+The TTM kernel parameters successfully raised the KFD memory limit to 93.75 GB.
+The problem is the BIOS carveout - it's not exposed through the KFD/HSA/HIP path.
+
+**Recommended configuration:**
+- BIOS: Default (no carveout) → 128GB system RAM
+- Kernel params: Keep `ttm.pages_limit=24576000 amdgpu.no_system_mem_limit=1`
+- Expected result: HIP should see ~96GB allocatable memory
+
+### Next Test: Default BIOS + TTM Params
+
+After reverting BIOS to default:
+
+```bash
+# Verify TTM limit still in effect
+cat /sys/module/ttm/parameters/pages_limit  # Should be 24576000
+
+# Check system RAM
+free -h  # Should show ~128GB
+
+# Test HIP memory
+hipcc -o /tmp/hip_mem_test hip_mem_test.cpp && /tmp/hip_mem_test
+
+# Test large allocation (60+ GB)
+# If successful, try loading Qwen3-235B with 55+ GPU layers
+```
+
+---
+
+### References
+
+- [Jeff Geerling: Increasing VRAM on AMD AI APUs](https://www.jeffgeerling.com/blog/2025/increasing-vram-allocation-on-amd-ai-apus-under-linux)
+- [AMD KFD mem limit fix patch](https://www.mail-archive.com/amd-gfx@lists.freedesktop.org/msg128131.html)
+- Linux 6.10+ has improved APU memory handling following MI300A approach
+
+---
+
+## Investigation Update: 64GB BIOS Carveout + TTM Params (2026-01-15)
+
+### Test Configuration
+
+- **BIOS VRAM carveout:** 64GB
+- **Kernel params:** `ttm.pages_limit=24576000 amdgpu.no_system_mem_limit=1 amdgpu.gttsize=117760`
+
+### Results
+
+| Metric | Value |
+|--------|-------|
+| BIOS VRAM carveout | 64 GB |
+| System RAM visible | 61 GB (128-64-overhead) |
+| KFD mem_banks | 93.75 GB (TTM param working!) |
+| KFD local_mem_size | 0 (VRAM not exposed) |
+| rocm-smi VRAM | 64 GB |
+| HIP Total | 93.75 GB |
+| HIP Free | 58.97 GB |
+
+### Allocation Tests
+
+| Size | Result |
+|------|--------|
+| 50 GB | ✓ Success |
+| 55 GB | ✓ Success |
+| 58 GB | ✓ Success |
+| 60 GB | ✓ Success |
+| 63 GB | ✗ **OOM KILLED** |
+
+### Root Cause of OOM
+
+The critical mismatch:
+1. **KFD advertises 93.75 GB** available (from TTM params override)
+2. **Only 61 GB physical RAM** exists (64GB carved out by BIOS)
+3. **BIOS VRAM (64GB) is NOT usable** by HIP/KFD - shows as `local_mem_size=0`
+
+When HIP tried to allocate 63GB:
+- It exceeded the 61GB of available system RAM
+- Linux OOM killer terminated the process
+- The 64GB VRAM carveout is visible to `rocm-smi` but NOT exposed to KFD/HSA/HIP
+
+### Key Finding
+
+**The BIOS VRAM carveout is fundamentally broken for ROCm on Strix Halo:**
+- The carved-out memory becomes inaccessible to the OS
+- KFD doesn't expose it as usable GPU memory (`local_mem_size=0`)
+- Result: You lose RAM without gaining GPU memory
+
+### Safe Allocation Limit
+
+With 64GB BIOS carveout:
+- **Maximum safe allocation:** ~58-60 GB
+- **Actual usable for LLM layers:** ~55 GB (with margin)
+
+### Recommendation
+
+**Revert BIOS to default (no carveout):**
+- This restores 128 GB system RAM
+- TTM params (`pages_limit=24576000`) should allow ~96GB allocations
+- Expected result: 80-90 GB safely allocatable for LLM inference
+
+---
+
+## SUCCESS: 512MB BIOS + TTM Params (2026-01-15)
+
+### Final Working Configuration
+
+- **BIOS VRAM:** 512MB (minimum)
+- **Kernel params:** `ttm.pages_limit=24576000 amdgpu.no_system_mem_limit=1 amdgpu.gttsize=117760`
+
+### Results: +27 GB More GPU Memory!
+
+| Metric | Before | After |
+|--------|--------|-------|
+| System RAM | 128 GB | 122 GB visible |
+| TTM pages_limit | default (~61GB) | 24576000 (96GB) |
+| KFD mem_banks size | ~61 GB | **93.75 GB** |
+| HIP Total | 61.35 GB | **93.75 GB** |
+| HIP Free | 61.35 GB | **93.75 GB** |
+| **Max Allocation** | **~61 GB** | **88.16 GB** |
+
+### Allocation Test Results
+
+| Size | Result |
+|------|--------|
+| 70 GB | ✓ Success |
+| 80 GB | ✓ Success |
+| 85 GB | ✓ Success |
+| 88 GB | ✓ Success |
+| 90 GB | ✗ Failed (out of memory) |
+| **Max** | **88.16 GB** |
+
+### Why It Works
+
+The key was combining:
+1. **No BIOS carveout** - Full 128 GB system RAM available
+2. **TTM pages_limit=24576000** - Raises kernel memory pool to 96 GB
+3. **amdgpu.no_system_mem_limit=1** - Disables artificial system memory cap
+
+The previous tests with BIOS carveouts (64GB, 96GB) failed because:
+- BIOS carveout reduces visible system RAM
+- KFD doesn't expose BIOS-carved VRAM (`local_mem_size=0`)
+- Result: Less RAM with no GPU memory gain
+
+### Recommended /etc/default/grub
+
+```bash
+GRUB_CMDLINE_LINUX_DEFAULT="text iommu=pt amdgpu.gttsize=117760 amdgpu.no_system_mem_limit=1 ttm.pages_limit=24576000"
+```
+
+### Test History Summary
+
+| Date | Config | Result |
+|------|--------|--------|
+| Original | 512MB BIOS, no TTM params | 61.35 GB HIP limit |
+| Test 1 | 96GB BIOS carveout | 15.24 GB (worse!) |
+| Test 2 | 96GB BIOS + TTM params | 31 GB usable, VRAM not exposed |
+| Test 3 | 64GB BIOS + TTM params | OOM at 63GB (only 61GB RAM) |
+| **Test 4** | **512MB BIOS + TTM params** | **✓ 88.16 GB SUCCESS!** |
+
+---
+
 ## Contact
 
 This investigation was performed to maximize LLM inference performance on Strix Halo.
