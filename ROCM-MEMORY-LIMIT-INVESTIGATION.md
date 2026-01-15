@@ -490,6 +490,84 @@ GRUB_CMDLINE_LINUX_DEFAULT="text iommu=pt amdgpu.gttsize=117760 amdgpu.no_system
 
 ---
 
+## GPU Layer Testing Session (2026-01-15)
+
+### Goal
+Push GPU layer count beyond the previous 55-layer limit now that we have 88 GB allocatable memory.
+
+### Test Environment
+- BIOS: 512MB VRAM (minimum)
+- Kernel params: `ttm.pages_limit=24576000 amdgpu.no_system_mem_limit=1 amdgpu.gttsize=117760`
+- HIP reports: 93.75 GB total, 88.16 GB max allocation
+- Model: Qwen3-235B-A22B-Thinking Q3_K_M (107 GB total, 95 layers)
+
+### Test Results
+
+| Layers | GPU Buffer | Load Time | Inference | Status |
+|--------|------------|-----------|-----------|--------|
+| 55 | 61 GB | **224s** | 22.7 pp, 9.3 tg tok/s | ✓ Working |
+| 56 | 61.05 GB | >10 min | - | ✗ Timeout |
+| 58 | 63.25 GB | >17 min | - | ✗ Timeout |
+| 55 (retry) | 61 GB | 367s | 0.44 pp, 2.19 tg tok/s | ⚠ Degraded |
+| 55 (retry 2) | 61 GB | >5 min | - | ✗ Timeout |
+
+### Key Observations
+
+1. **hipMalloc vs llama-server behavior differs**
+   - Raw `hipMalloc` test: 88 GB allocation succeeds
+   - llama-server with 56+ layers (61+ GB): hangs during tensor loading
+
+2. **System degradation after failed attempts**
+   - After failed 56/58 layer attempts, even 55 layers became slow/stuck
+   - Performance dropped from 22.7/9.3 tok/s to 0.44/2.19 tok/s
+   - Suggests SVM/unified memory state corruption
+
+3. **The ~61 GB boundary**
+   - 55 layers = 61 GB works
+   - 56 layers = 61.05 GB hangs
+   - The threshold appears to be around the old HIP limit (61.35 GB)
+
+### Hypothesis
+
+The TTM kernel params successfully raise the allocation limit for simple `hipMalloc` calls, but llama-server's tensor loading pattern (many sequential allocations, mmap usage) may trigger different behavior in the ROCm/SVM subsystem that still respects some internal limit.
+
+Possible causes:
+- KFD memory pool fragmentation
+- SVM page migration overhead at larger sizes
+- Different code paths for managed vs device memory
+- mmap interaction with unified memory
+
+### Next Steps After Reboot
+
+1. **Verify baseline** - Confirm 55 layers still works at ~224s load time
+2. **Test without mmap** - Try `-nmmp` or `--no-mmap` flag if available
+3. **Test with UMA build** - Rebuild llama.cpp with `GGML_HIP_UMA=ON`
+4. **Incremental testing** - If 55 works, try 55 → 56 with careful monitoring
+5. **Monitor dmesg** - Watch for SVM/KFD warnings during loading
+
+### Commands for Post-Reboot
+
+```bash
+# Verify system state
+free -h
+cat /sys/module/ttm/parameters/pages_limit  # Should be 24576000
+rocm-smi --showmeminfo gtt
+
+# Quick HIP allocation test
+./hip_alloc_test 70  # Should succeed
+
+# Test 55 layers (baseline)
+export HSA_ENABLE_SDMA=0 HSA_OVERRIDE_GFX_VERSION=11.5.1 HIP_VISIBLE_DEVICES=0 GPU_MAX_HEAP_SIZE=100
+llama-server -m "models/massive/qwen3-235b-thinking/Q3_K_M/Qwen3-235B-A22B-Thinking-2507-Q3_K_M-00001-of-00003.gguf" \
+  -ngl 55 --host 0.0.0.0 --port 8081 -c 4096 -np 1 -t 16 -b 1024
+```
+
+### Status: REBOOT REQUIRED
+
+System is in degraded state from failed high-memory allocation attempts. Reboot needed to restore clean SVM/memory state.
+
+---
+
 ## Contact
 
 This investigation was performed to maximize LLM inference performance on Strix Halo.
