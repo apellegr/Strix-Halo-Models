@@ -181,6 +181,8 @@ start_model() {
     print_info "  Context: $context tokens"
     
     # Build the command
+    # Note: --no-mmap is critical for large GPU allocations on Strix Halo APUs
+    # Without it, models >61GB will hang due to mmap/SVM interaction issues
     local cmd="$LLAMA_SERVER \
         --model \"$model_path\" \
         --host $HOST \
@@ -190,6 +192,7 @@ start_model() {
         --threads $DEFAULT_THREADS \
         --batch-size $DEFAULT_BATCH_SIZE \
         --flash-attn \
+        --no-mmap \
         $extra"
     
     # Start the server in background

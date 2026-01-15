@@ -82,6 +82,211 @@
       "ctx_size": 32768,
       "batch_size": 1024,
       "notes": "NousResearch Hermes 4 14B - fast model optimized for tool/function calling. ~10GB model."
+    },
+    "qwen3-235b": {
+      "gpu_layers": 81,
+      "ctx_size": 4096,
+      "batch_size": 1024,
+      "notes": "Same model as qwen3-235b-thinking. 81 GPU layers max with --no-mmap (82+ OOM). ~90GB GPU memory."
+    },
+    "qwen2.5-7b": {
+      "gpu_layers": 60,
+      "ctx_size": 4096,
+      "batch_size": 512,
+      "benchmark": {
+        "pp_tokens_per_sec": 1374.196552,
+        "tg_tokens_per_sec": 38.894862,
+        "memory_gb": 11,
+        "date": "2026-01-15"
+      }
+    },
+    "llama-3.1-8b": {
+      "gpu_layers": 40,
+      "ctx_size": 4096,
+      "batch_size": 512,
+      "benchmark": {
+        "pp_tokens_per_sec": 1138.658516,
+        "tg_tokens_per_sec": 33.415125,
+        "memory_gb": 11,
+        "date": "2026-01-15"
+      }
+    },
+    "mistral-7b": {
+      "gpu_layers": 40,
+      "ctx_size": 4096,
+      "batch_size": 512,
+      "benchmark": {
+        "pp_tokens_per_sec": 1085.375539,
+        "tg_tokens_per_sec": 32.929341,
+        "memory_gb": 10,
+        "date": "2026-01-15"
+      }
+    },
+    "gemma-2-9b": {
+      "gpu_layers": 999,
+      "ctx_size": 4096,
+      "batch_size": 512,
+      "benchmark": {
+        "pp_tokens_per_sec": 924.053071,
+        "tg_tokens_per_sec": 25.104120,
+        "memory_gb": 12,
+        "date": "2026-01-15"
+      }
+    },
+    "phi-4": {
+      "gpu_layers": 50,
+      "ctx_size": 4096,
+      "batch_size": 512,
+      "benchmark": {
+        "pp_tokens_per_sec": 630.082714,
+        "tg_tokens_per_sec": 17.884471,
+        "memory_gb": 15,
+        "date": "2026-01-15"
+      }
+    },
+    "qwen2.5-14b": {
+      "gpu_layers": 70,
+      "ctx_size": 4096,
+      "batch_size": 512,
+      "benchmark": {
+        "pp_tokens_per_sec": 628.221983,
+        "tg_tokens_per_sec": 17.857975,
+        "memory_gb": 15,
+        "date": "2026-01-15"
+      }
+    },
+    "qwen2.5-32b": {
+      "gpu_layers": 70,
+      "ctx_size": 4096,
+      "batch_size": 512,
+      "benchmark": {
+        "pp_tokens_per_sec": 281.944993,
+        "tg_tokens_per_sec": 9.457219,
+        "memory_gb": 24,
+        "date": "2026-01-15"
+      }
+    },
+    "gemma-2-27b": {
+      "gpu_layers": 50,
+      "ctx_size": 4096,
+      "batch_size": 512,
+      "benchmark": {
+        "pp_tokens_per_sec": 329.453848,
+        "tg_tokens_per_sec": 11.830516,
+        "memory_gb": 21,
+        "date": "2026-01-15"
+      }
+    },
+    "mistral-small-24b": {
+      "gpu_layers": 70,
+      "ctx_size": 4096,
+      "batch_size": 512,
+      "benchmark": {
+        "pp_tokens_per_sec": 361.331205,
+        "tg_tokens_per_sec": 13.128691,
+        "memory_gb": 19,
+        "date": "2026-01-15"
+      }
+    },
+    "solar-10.7b": {
+      "gpu_layers": 70,
+      "ctx_size": 4096,
+      "batch_size": 512,
+      "benchmark": {
+        "pp_tokens_per_sec": 714.720085,
+        "tg_tokens_per_sec": 22.078790,
+        "memory_gb": 13,
+        "date": "2026-01-15"
+      }
+    },
+    "qwen2.5-coder-7b": {
+      "gpu_layers": 80,
+      "ctx_size": 4096,
+      "batch_size": 512,
+      "benchmark": {
+        "pp_tokens_per_sec": 1314.168343,
+        "tg_tokens_per_sec": 35.229180,
+        "memory_gb": 11,
+        "date": "2026-01-15"
+      }
+    },
+    "pixtral-12b": {
+      "gpu_layers": 70,
+      "ctx_size": 4096,
+      "batch_size": 512,
+      "benchmark": {
+        "pp_tokens_per_sec": 744.237302,
+        "tg_tokens_per_sec": 23.773498,
+        "memory_gb": 12,
+        "date": "2026-01-15"
+      }
+    },
+    "llava-1.6-7b": {
+      "gpu_layers": 40,
+      "ctx_size": 4096,
+      "batch_size": 512,
+      "benchmark": {
+        "pp_tokens_per_sec": 1074.428048,
+        "tg_tokens_per_sec": 32.899557,
+        "memory_gb": 10,
+        "date": "2026-01-15"
+      }
+    },
+    "qwen2.5-vl-7b": {
+      "gpu_layers": 30,
+      "ctx_size": 4096,
+      "batch_size": 512,
+      "benchmark": {
+        "pp_tokens_per_sec": 1273.009916,
+        "tg_tokens_per_sec": 34.617592,
+        "memory_gb": 11,
+        "date": "2026-01-15"
+      }
+    },
+    "codellama-70b": {
+      "gpu_layers": 999,
+      "ctx_size": 4096,
+      "batch_size": 512,
+      "benchmark": {
+        "pp_tokens_per_sec": 118.080837,
+        "tg_tokens_per_sec": 4.451023,
+        "memory_gb": 44,
+        "date": "2026-01-15"
+      }
+    },
+    "command-r-plus": {
+      "gpu_layers": 999,
+      "ctx_size": 4096,
+      "batch_size": 512,
+      "benchmark": {
+        "pp_tokens_per_sec": 89.276793,
+        "tg_tokens_per_sec": 3.433214,
+        "memory_gb": 43,
+        "date": "2026-01-15"
+      }
+    },
+    "mistral-large-123b": {
+      "gpu_layers": 999,
+      "ctx_size": 4096,
+      "batch_size": 512,
+      "benchmark": {
+        "pp_tokens_per_sec": 73.970921,
+        "tg_tokens_per_sec": 2.813975,
+        "memory_gb": 43,
+        "date": "2026-01-15"
+      }
+    },
+    "llama-4-scout": {
+      "gpu_layers": 999,
+      "ctx_size": 4096,
+      "batch_size": 512,
+      "notes": "Llama 4 Scout MoE (17B-16E). Full GPU offload with --no-mmap. ~47GB model."
+    },
+    "gpt-oss-120b": {
+      "gpu_layers": 60,
+      "ctx_size": 4096,
+      "batch_size": 512,
+      "notes": "OpenAI gpt-oss-120b MXFP4 format. Conservative GPU layers - may need tuning."
     }
   }
 }
