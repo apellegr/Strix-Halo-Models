@@ -42,7 +42,7 @@ DEFAULT_THREADS="16"          # Physical cores (SMT2 system)
 DEFAULT_BATCH_SIZE="1024"     # Larger batch for faster prompt processing
 DEFAULT_CTX_SIZE="4096"
 DEFAULT_PARALLEL="1"          # Number of parallel slots (reduce for faster individual requests)
-DEFAULT_FLASH_ATTN="on"       # Flash attention for speed
+# DEFAULT_FLASH_ATTN="on"     # Disabled - may cause high CPU when idle on Strix Halo
 
 #===============================================================================
 # ROCm/GPU Environment for Strix Halo Unified Memory
@@ -484,7 +484,6 @@ start_model() {
         --threads "$DEFAULT_THREADS" \
         --batch-size "$batch_size" \
         --parallel "$DEFAULT_PARALLEL" \
-        --flash-attn "$DEFAULT_FLASH_ATTN" \
         --no-mmap \
         --metrics \
         --alias "$model_name" \
@@ -624,7 +623,6 @@ run_model_foreground() {
         --threads "$DEFAULT_THREADS" \
         --batch-size "$batch_size" \
         --parallel "$DEFAULT_PARALLEL" \
-        --flash-attn "$DEFAULT_FLASH_ATTN" \
         --no-mmap \
         --metrics \
         --alias "$model_name" \
