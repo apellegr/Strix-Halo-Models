@@ -1,0 +1,7 @@
+batch_size,tokens_per_sec,avg_response_time,burst_test,concurrent_test,gpu_errors,stability
+128,[0;34m[INFO][0m Measuring performance (batch_size=128)...,,[0;34m[INFO][0m Testing stability (batch_size=128)...,,,
+256,[0;34m[INFO][0m Measuring performance (batch_size=256)...,,[0;34m[INFO][0m Testing stability (batch_size=256)...,,,
+384,[0;34m[INFO][0m Measuring performance (batch_size=384)...,,[0;34m[INFO][0m Testing stability (batch_size=384)...,,,
+512,[0;34m[INFO][0m Measuring performance (batch_size=512)...,,[0;34m[INFO][0m Testing stability (batch_size=512)...,,,
+768,[0;34m[INFO][0m Measuring performance (batch_size=768)...,,[0;34m[INFO][0m Testing stability (batch_size=768)...,,,
+1024,[0;34m[INFO][0m Measuring performance (batch_size=1024)...,,[0;34m[INFO][0m Testing stability (batch_size=1024)...,,,

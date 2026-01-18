@@ -1,0 +1,7 @@
+batch_size,tokens_per_sec,avg_response_time,burst_test,concurrent_test,gpu_errors,stability
+128,10.05,19.89,,,,
+256,10.10,19.79,,,,
+384,10.07,19.85,,,,
+512,10.07,19.85,,,,
+768,10.17,19.64,,,,
+1024,10.06,19.87,,,,
