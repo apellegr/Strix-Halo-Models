@@ -337,7 +337,7 @@ check_memory_available() {
 }
 
 # Get saved optimized config from model-configs.json
-# Returns: gpu_layers ctx_size batch_size (space separated)
+# Returns: gpu_layers ctx_size batch_size n_predict (space separated)
 get_saved_config() {
     local model_name="$1"
 
@@ -354,9 +354,10 @@ get_saved_config() {
     local saved_gpu_layers=$(jq -r ".models[\"$model_name\"].gpu_layers // empty" "$CONFIG_FILE")
     local saved_ctx_size=$(jq -r ".models[\"$model_name\"].ctx_size // empty" "$CONFIG_FILE")
     local saved_batch_size=$(jq -r ".models[\"$model_name\"].batch_size // empty" "$CONFIG_FILE")
+    local saved_n_predict=$(jq -r ".models[\"$model_name\"].n_predict // empty" "$CONFIG_FILE")
 
     if [[ -n "$saved_gpu_layers" ]]; then
-        echo "$saved_gpu_layers $saved_ctx_size $saved_batch_size"
+        echo "$saved_gpu_layers $saved_ctx_size $saved_batch_size $saved_n_predict"
         return 0
     fi
 
@@ -399,11 +400,13 @@ start_model() {
     # Check for saved optimized config and override defaults
     local is_optimized=""
     local saved_config
+    local n_predict=""
     if saved_config=$(get_saved_config "$model_name"); then
-        read -r saved_gpu saved_ctx saved_batch <<< "$saved_config"
+        read -r saved_gpu saved_ctx saved_batch saved_n_predict <<< "$saved_config"
         if [[ -n "$saved_gpu" ]]; then
             gpu_layers="$saved_gpu"
             [[ -n "$saved_ctx" ]] && ctx_size="$saved_ctx"
+            [[ -n "$saved_n_predict" ]] && n_predict="$saved_n_predict"
             is_optimized="yes"
         fi
     fi
@@ -475,6 +478,10 @@ start_model() {
     local batch_size="${saved_batch:-$DEFAULT_BATCH_SIZE}"
 
     # Start the server
+    # Build optional args
+    local n_predict_arg=""
+    [[ -n "$n_predict" ]] && n_predict_arg="--n-predict $n_predict"
+
     nohup "$LLAMA_SERVER" \
         --model "$model_path" \
         --host "$DEFAULT_HOST" \
@@ -487,6 +494,7 @@ start_model() {
         --no-mmap \
         --metrics \
         --alias "$model_name" \
+        $n_predict_arg \
         $extra_args \
         > "$log_file" 2>&1 &
 
@@ -547,11 +555,13 @@ run_model_foreground() {
     # Check for saved optimized config and override defaults
     local is_optimized=""
     local saved_config
+    local n_predict=""
     if saved_config=$(get_saved_config "$model_name"); then
-        read -r saved_gpu saved_ctx saved_batch <<< "$saved_config"
+        read -r saved_gpu saved_ctx saved_batch saved_n_predict <<< "$saved_config"
         if [[ -n "$saved_gpu" ]]; then
             gpu_layers="$saved_gpu"
             [[ -n "$saved_ctx" ]] && ctx_size="$saved_ctx"
+            [[ -n "$saved_n_predict" ]] && n_predict="$saved_n_predict"
             is_optimized="yes"
         fi
     fi
@@ -614,6 +624,10 @@ run_model_foreground() {
     local batch_size="${saved_batch:-$DEFAULT_BATCH_SIZE}"
 
     # Exec replaces this process with llama-server
+    # Build optional args
+    local n_predict_arg=""
+    [[ -n "$n_predict" ]] && n_predict_arg="--n-predict $n_predict"
+
     exec "$LLAMA_SERVER" \
         --model "$model_path" \
         --host "$DEFAULT_HOST" \
@@ -626,6 +640,7 @@ run_model_foreground() {
         --no-mmap \
         --metrics \
         --alias "$model_name" \
+        $n_predict_arg \
         $extra_args
 }
 
