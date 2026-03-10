@@ -12,7 +12,7 @@ A comprehensive toolkit for running local LLM inference on AMD Ryzen AI Max+ 395
 
 ## Benchmarks
 
-Measured on AMD Ryzen AI Max+ 395, 128GB LPDDR5X, ROCm 7.2, llama.cpp (Lychee b8182). All models fully GPU offloaded (ngl=999) except Qwen3-235B (80/95 layers).
+Measured on AMD Ryzen AI Max+ 395, 128GB LPDDR5X, Ubuntu 25.10, kernel 6.17, ROCm 7.2, llama.cpp (Lychee b8182). All models fully GPU offloaded (ngl=999) except Qwen3-235B (80/95 layers). See [docs/MODELS.md](docs/MODELS.md) for full system configuration to reproduce these results.
 
 | Model | Params | Quant | Prompt (tok/s) | Generation (tok/s) | Size |
 |-------|--------|-------|----------------|-------------------|------|

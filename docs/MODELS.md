@@ -32,9 +32,64 @@ MODELS_DIR=/mnt/nvme/models ./scripts/setup/download_strix_halo_models.sh
 
 ---
 
+## System Configuration
+
+Exact software stack used for all benchmarks (March 10, 2026):
+
+| Component | Version / Details |
+|-----------|-------------------|
+| **OS** | Ubuntu 25.10 |
+| **Kernel** | 6.17.0-14-generic |
+| **ROCm** | 7.2.0 |
+| **HIP Runtime** | 7.2.26015.70200-43 |
+| **rocBLAS** | 5.2.0.70200-43 |
+| **amdgpu driver** | In-kernel (6.17.0-14-generic) |
+| **llama.cpp** | [Lychee-Technology](https://github.com/Lychee-Technology/llama.cpp) build b8182, commit `05728db` |
+| **ggml libs** | 0.9.7 (libggml-base, libggml-cpu, libggml-hip) |
+| **libllama** | 0.0.1 |
+| **Compiler** | Clang 22.0.0 (ROCm HIP), GCC 15.2.0 (system) |
+| **GPU target** | gfx1151 (RDNA 3.5) |
+
+### Kernel Parameters (required for full GPU memory)
+
+```
+amdgpu.gttsize=117760 amdgpu.no_system_mem_limit=1 ttm.pages_limit=24576000
+```
+
+This unlocks 115 GB GTT (up from ~61 GB default). Without these, most models above 32B will fail to fully offload.
+
+### Environment Variables
+
+```bash
+export HSA_ENABLE_SDMA=0
+export GPU_MAX_HEAP_SIZE=100
+export GPU_MAX_ALLOC_PERCENT=100
+export GPU_SINGLE_ALLOC_PERCENT=100
+export GPU_FORCE_64BIT_PTR=1
+export HIP_VISIBLE_DEVICES=0
+export HSA_OVERRIDE_GFX_VERSION=11.5.1
+```
+
+### Benchmark Command
+
+All results collected with `llama-bench` using these flags:
+
+```bash
+llama-bench -m <model> -ngl 999 -t 16 -b <batch> -ub <ubatch> \
+    -p 512 -n 128 -r 3 -fa 1 -mmp 0 -o json
+```
+
+- `-p 512 -n 128`: 512 prompt tokens, 128 generation tokens
+- `-r 3`: 3 repetitions, results averaged
+- `-fa 1`: Flash attention enabled
+- `-mmp 0`: mmap disabled (required for large models on unified memory)
+- `-ngl 999`: Full GPU offload (except Qwen3-235B at `-ngl 80`)
+
+---
+
 ## Complete Benchmark Results
 
-All benchmarks measured on AMD Ryzen AI Max+ 395, 128GB LPDDR5X, ROCm 7.2, llama.cpp (Lychee b8182, March 2026). Fully GPU offloaded (ngl=999) unless noted. Flash attention enabled. 3 repetitions averaged.
+Fully GPU offloaded (ngl=999) unless noted. Flash attention enabled. 3 repetitions averaged.
 
 ### Fast Models (3-9B) — 29-69 tok/s
 
