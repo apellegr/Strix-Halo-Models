@@ -11,76 +11,204 @@ The AMD Ryzen AI Max+ 395 (Strix Halo) with 128GB LPDDR5X-8000 is exceptionally 
 | Peak FP16 | ~59 TFLOPS |
 | Memory | 128GB LPDDR5X-8000 |
 | Bandwidth | ~212-256 GB/s |
-| GPU Memory (Linux GTT) | ~115-120GB |
-| GPU Memory (Windows) | Up to 96GB |
+| GPU Memory (Linux GTT) | ~90-93GB (with kernel params) |
+| Host-to-Device BW | ~85 GB/s (LLM bottleneck) |
 
 ## Quick Start
 
 ```bash
-# Make the script executable
-chmod +x download_strix_halo_models.sh
+# Download essential models
+./scripts/setup/download_strix_halo_models.sh --essential
 
-# Run interactive menu
-./download_strix_halo_models.sh
-
-# Or download essential models directly
-./download_strix_halo_models.sh --essential
+# Or run interactive menu
+./scripts/setup/download_strix_halo_models.sh
 
 # Preview without downloading
-DRY_RUN=1 ./download_strix_halo_models.sh --all
+DRY_RUN=1 ./scripts/setup/download_strix_halo_models.sh --all
 
 # Custom directory
-MODELS_DIR=/mnt/nvme/models ./download_strix_halo_models.sh
+MODELS_DIR=/mnt/nvme/models ./scripts/setup/download_strix_halo_models.sh
 ```
 
-## Model Performance Expectations
+---
 
-Based on benchmarks with llama.cpp on Strix Halo (AMD Ryzen AI Max+ 395):
+## Complete Benchmark Results
 
-### Measured Benchmarks (January 2026)
+All benchmarks measured on AMD Ryzen AI Max+ 395, 128GB LPDDR5X, ROCm 7.2, llama.cpp (Lychee b8182, March 2026). Fully GPU offloaded (ngl=999) unless noted. Flash attention enabled. 3 repetitions averaged.
 
-These results are from actual benchmarks using `./benchmark-model.sh --optimize`:
+### Fast Models (3-9B) — 29-69 tok/s
 
-| Model | GPU Layers | Prompt (tok/s) | Generation (tok/s) | Memory |
-|-------|------------|----------------|-------------------|--------|
-| **llama-3.2-3b** | 50 | 2,154 | **68.8** | ~8GB |
-| **deepseek-coder-v2-16b** | 80 | 1,164 | **63.2** | ~17GB |
-| **qwen2.5-coder-32b** | 80 | 317 | **10.5** | ~24GB |
-| **deepseek-r1-32b** | 80 | 316 | **10.5** | ~24GB |
-| **qwen3-235b-thinking** | 50 | 129 | **8.3** | ~51GB |
+| Model | Quant | Size | Prompt (tok/s) | Generation (tok/s) |
+|-------|-------|------|----------------|-------------------|
+| Llama 3.2 3B | Q6_K | 2.6 GB | 1,538 | **69.0** |
+| GLM-4.7 Flash | Q4_K_M | 17.1 GB | 897 | **54.1** |
+| Qwen 2.5 7B | Q5_K_M | 5.1 GB | 1,140 | **40.7** |
+| Mistral 7B v0.3 | Q5_K_M | 4.8 GB | 895 | **39.0** |
+| Llama 3.1 8B | Q5_K_M | 5.3 GB | 893 | **37.2** |
+| Gemma 2 9B | Q5_K_M | 6.2 GB | 710 | **29.0** |
 
-### Fast Tier (3-9B models) - 50-70+ tok/s
-| Model | Quant | Size | Tokens/sec |
-|-------|-------|------|------------|
-| Llama 3.2 3B | Q6_K | ~3GB | **68.8** (measured) |
-| Mistral 7B | Q5_K_M | ~5GB | 30-45 |
-| Qwen 2.5 7B | Q5_K_M | ~5GB | 30-40 |
-| Gemma 2 9B | Q5_K_M | ~7GB | 25-35 |
+GLM-4.7 Flash is a MoE model — despite its 17 GB size, it achieves 54 tok/s TG because only a fraction of parameters are active per token.
 
-### Balanced Tier (14-32B models) - 10-25 tok/s
-| Model | Quant | Size | Tokens/sec |
-|-------|-------|------|------------|
-| DeepSeek Coder V2 16B | Q5_K_M | ~12GB | **63.2** (measured, MoE) |
-| Qwen 2.5 14B | Q5_K_M | ~10GB | 18-25 |
-| Gemma 2 27B | Q4_K_M | ~17GB | 12-18 |
-| Qwen 2.5 Coder 32B | Q4_K_M | ~19GB | **10.5** (measured) |
-| DeepSeek R1 32B | Q4_K_M | ~19GB | **10.5** (measured) |
+### Balanced Models (14-32B) — 11-21 tok/s
 
-### Large Tier (70B models) - 3-15 tok/s
-| Model | Quant | Size | Tokens/sec |
-|-------|-------|------|------------|
-| Llama 3.3 70B | Q4_K_M | ~42GB | 8-12 |
-| Qwen 2.5 72B | Q4_K_M | ~43GB | 7-10 |
-| DeepSeek R1 70B | Q4_K_M | ~42GB | 7-10 |
-| CodeLlama 70B | Q4_K_M | ~39GB | 7-10 |
+| Model | Quant | Size | Prompt (tok/s) | Generation (tok/s) |
+|-------|-------|------|----------------|-------------------|
+| Hermes 4 14B | Q5_K_M | 9.8 GB | 558 | **21.1** |
+| Qwen 2.5 14B | Q5_K_M | 9.8 GB | 537 | **20.9** |
+| Phi-4 14B | Q5_K_M | 9.9 GB | 555 | **20.8** |
+| Mistral Small 24B | Q4_K_M | 13.3 GB | 352 | **15.0** |
+| Gemma 2 27B | Q4_K_M | 15.5 GB | 310 | **12.7** |
+| Qwen 2.5 32B | Q4_K_M | 18.5 GB | 266 | **11.0** |
+| DeepSeek R1 32B | Q4_K_M | 18.5 GB | 255 | **11.0** |
 
-### Massive Tier (100B+) - 1-10 tok/s
-| Model | Quant | Size | Tokens/sec |
-|-------|-------|------|------------|
-| Qwen 3 235B Thinking | Q3_K | ~107GB | **8.3** (measured) |
-| Qwen 3 235B | Q3_K_XL | ~98GB | 2-4 |
-| Mistral Large 123B | Q3_K_L | ~61GB | 3-5 |
-| Command R+ 104B | Q3_K_M | ~49GB | 4-6 |
+### Coding Models — 11-70 tok/s
+
+| Model | Quant | Size | Prompt (tok/s) | Generation (tok/s) | Notes |
+|-------|-------|------|----------------|-------------------|-------|
+| **Qwen3 Coder 30B** | Q4_K_M | 17.3 GB | 812 | **69.6** | MoE (3B active) |
+| **DeepSeek Coder V2 16B** | Q5_K_M | 11.0 GB | 1,227 | **68.0** | MoE |
+| Qwen 2.5 Coder 7B | Q5_K_M | 5.1 GB | 1,134 | **40.7** | |
+| Qwen 2.5 Coder 14B | Q6_K | 11.3 GB | 489 | **18.2** | |
+| Qwen 2.5 Coder 32B | Q4_K_M | 18.5 GB | 264 | **11.0** | |
+| CodeLlama 70B | Q4_K_M | 38.6 GB | 112 | **5.0** | |
+
+The two MoE coding models (Qwen3 Coder 30B and DeepSeek Coder V2) are standouts — they achieve 6x the TG speed of similarly-sized dense models while maintaining strong code quality.
+
+### Tool Calling & Function Calling — 25-37 tok/s
+
+| Model | Quant | Size | Prompt (tok/s) | Generation (tok/s) |
+|-------|-------|------|----------------|-------------------|
+| Functionary v3.2 | Q5_K_M | 5.3 GB | 874 | **37.1** |
+| xLAM-2 8B | Q5_K_M | 5.3 GB | 882 | **37.0** |
+| Hermes 2 Pro 8B | Q6_K | 6.1 GB | 642 | **33.0** |
+| Mistral Nemo 12B | Q5_K_M | 8.1 GB | 643 | **25.0** |
+
+### Vision Models — 28-41 tok/s
+
+| Model | Quant | Size | Prompt (tok/s) | Generation (tok/s) |
+|-------|-------|------|----------------|-------------------|
+| Qwen 2.5 VL 7B | Q5_K_M | 5.1 GB | 1,132 | **40.6** |
+| LLaVA 1.6 7B | Q5_K_M | 4.8 GB | 870 | **38.9** |
+| Pixtral 12B | Q4_K_M | 7.0 GB | 645 | **28.2** |
+
+### Large Models (70B dense) — 3.5-5.0 tok/s
+
+| Model | Quant | Size | Prompt (tok/s) | Generation (tok/s) |
+|-------|-------|------|----------------|-------------------|
+| Hermes 4 70B | Q4_K_M | 39.6 GB | 112 | **5.0** |
+| Hermes 3 70B | Q4_K_M | 39.6 GB | 109 | **5.0** |
+| DeepSeek R1 Llama 70B | Q4_K_M | 39.6 GB | 111 | **5.0** |
+| Command R+ 104B | Q3_K_M | 47.5 GB | 91 | **4.2** |
+| Llama 3.3 70B | Q6_K | 53.9 GB | 86 | **3.8** |
+| Qwen 2.5 72B | Q6_K | 59.9 GB | 68 | **3.4** |
+
+Dense 70B models are heavily memory-bandwidth bound. Q4_K_M variants (~40 GB) achieve ~5 tok/s, while Q6_K variants (~54-60 GB) drop to 3.4-3.8 tok/s due to the larger weight transfer per token.
+
+### Massive Models (100B+) — 7.8-51 tok/s
+
+| Model | Quant | Size | Prompt (tok/s) | Generation (tok/s) | Notes |
+|-------|-------|------|----------------|-------------------|-------|
+| **GPT-OSS 120B** | MXFP4 | 59.0 GB | 174 | **51.1** | ISWA architecture |
+| **Llama 4 Scout** | Q4_K_M | 60.9 GB | 282 | **19.2** | MoE (17B-16E, 109B total) |
+| **Qwen 3.5 122B-A10B** | MXFP4 | 69.5 GB | 136 | **18.3** | MoE (10B active), hybrid SSM |
+| **Qwen3-235B Thinking** | Q3_K_M | 104.7 GB | 135 | **7.8** | MoE (22B active), 80/95 GPU layers |
+| Mistral Large 123B | Q3_K_L | 60.1 GB | 74 | **2.8** | Dense, older binary data |
+
+GPT-OSS 120B's 51 tok/s is remarkable for a 120B model — its ISWA architecture (sliding window attention) keeps the KV cache small (~4.5 GB at 131K context), allowing more memory for compute.
+
+---
+
+## Performance Analysis
+
+### Why MoE Models Are Fast
+
+Mixture-of-Experts (MoE) models only activate a subset of parameters per token. On memory-bandwidth-bound hardware like Strix Halo, this is transformative:
+
+| Model | Total Params | Active Params | TG (tok/s) | Speedup vs Dense |
+|-------|-------------|---------------|------------|-----------------|
+| Qwen3 Coder 30B | 30B | 3B | 69.6 | ~6x vs dense 32B |
+| DeepSeek Coder V2 16B | 16B | ~2B | 68.0 | ~6x vs dense 16B |
+| GLM-4.7 Flash | — | — | 54.1 | — |
+| GPT-OSS 120B | 120B | — | 51.1 | ~10x vs dense 120B |
+| Llama 4 Scout | 109B | 17B | 19.2 | ~4x vs dense 70B |
+| Qwen 3.5 122B-A10B | 122B | 10B | 18.3 | ~4x vs dense 70B |
+| Qwen3-235B Thinking | 235B | 22B | 7.8 | — |
+
+### TG Speed vs. Model Size
+
+Token generation speed is almost entirely determined by how much weight data must be read per token:
+
+| Size Range | Typical TG | Examples |
+|------------|-----------|----------|
+| 3-5 GB | 37-69 tok/s | Llama 3.2 3B, Mistral 7B |
+| 5-7 GB | 29-41 tok/s | Qwen 2.5 7B, Gemma 2 9B |
+| 8-10 GB | 21-26 tok/s | Phi-4, Solar 10.7B |
+| 11-13 GB | 15-18 tok/s | Mistral Small 24B, Qwen 2.5 Coder 14B |
+| 15-19 GB | 11-13 tok/s | Qwen 2.5 32B, DeepSeek R1 32B |
+| 39-40 GB | 5.0 tok/s | All Q4_K_M 70B models |
+| 54-60 GB | 3.4-3.8 tok/s | Q6_K 70B models |
+
+MoE models break this pattern because their *effective* size per token is much smaller than their on-disk size.
+
+---
+
+## Model Selection Guide
+
+### For Coding
+
+| Priority | Model | TG (tok/s) | Why |
+|----------|-------|-----------|-----|
+| Fastest | Qwen3 Coder 30B (MoE) | 69.6 | MoE — 6x faster than dense, strong quality |
+| Fast + Quality | DeepSeek Coder V2 16B (MoE) | 68.0 | Excellent code completion |
+| Best Quality | Qwen 2.5 Coder 32B | 11.0 | Dense — highest benchmark scores |
+| Large Context | CodeLlama 70B | 5.0 | 100K context, slow but capable |
+
+### For General Chat
+
+| Priority | Model | TG (tok/s) | Why |
+|----------|-------|-----------|-----|
+| Quick | Qwen 2.5 7B | 40.7 | Fast and capable for simple tasks |
+| Balanced | Qwen 2.5 32B | 11.0 | Good quality/speed tradeoff |
+| Best Quality | Qwen 2.5 72B (Q6_K) | 3.4 | Slow but highest quality |
+
+### For Reasoning / Math
+
+| Priority | Model | TG (tok/s) | Why |
+|----------|-------|-----------|-----|
+| Fast | DeepSeek R1 32B | 11.0 | R1 distillation, strong reasoning |
+| Maximum | Qwen3-235B Thinking | 7.8 | 235B MoE with extended thinking |
+
+### For Tool / Function Calling
+
+| Priority | Model | TG (tok/s) | Why |
+|----------|-------|-----------|-----|
+| Fast | Functionary v3.2 | 37.1 | Purpose-built for function calling |
+| Quality | Hermes 4 14B | 21.1 | Strong tool use, larger context |
+| Maximum | Hermes 4 70B | 5.0 | Best tool calling quality, slow |
+
+### For Vision Tasks
+
+| Priority | Model | TG (tok/s) | Why |
+|----------|-------|-----------|-----|
+| Fast | LLaVA 1.6 7B | 38.9 | Quick image understanding |
+| Quality | Qwen 2.5 VL 7B | 40.6 | Better visual reasoning |
+| Balanced | Pixtral 12B | 28.2 | Good quality, moderate speed |
+
+### For Claude Code (Local LLM)
+
+Recommended multi-model setup:
+
+| Role | Model | TG (tok/s) | Why |
+|------|-------|-----------|-----|
+| **Background** | Llama 3.2 3B | 69.0 | Handles simple tasks instantly |
+| **Default** | Qwen 2.5 Coder 32B | 11.0 | Strong coding, good context |
+| **Reasoning** | DeepSeek R1 32B | 11.0 | R1 architecture for complex tasks |
+
+**Total memory: ~40 GB** (leaves room for system + context)
+
+Setup: See [claude-code-router/README.md](../claude-code-router/README.md)
+
+---
 
 ## Recommended Software Stack
 
@@ -92,9 +220,8 @@ cd llama.cpp
 cmake -B build -DGGML_HIP=ON -DAMDGPU_TARGETS=gfx1151
 cmake --build build --config Release -j
 
-# Run with Vulkan (often faster on Strix Halo)
-cmake -B build -DGGML_VULKAN=ON
-cmake --build build --config Release -j
+# Or use the included install script
+./scripts/setup/install-llama-cpp.sh
 ```
 
 ### LM Studio
@@ -105,93 +232,58 @@ cmake --build build --config Release -j
 
 ### Ollama
 ```bash
-# Install Ollama
 curl -fsSL https://ollama.com/install.sh | sh
-
-# Run models (uses llama.cpp backend)
 ollama run llama3.3:70b-instruct-q4_K_M
 ```
 
-## Linux Configuration Tips
+---
 
-### 1. Maximize GTT Memory
+## Linux Configuration
+
+### 1. Unlock Full GPU Memory
+
+By default, ROCm limits GPU memory to ~61 GB. Add these kernel parameters to `/etc/default/grub`:
+
 ```bash
-# Check current GTT size
-cat /sys/class/drm/card*/device/mem_info_gtt_total
-
-# Set kernel parameter for maximum GTT
-# Add to /etc/default/grub GRUB_CMDLINE_LINUX:
-# amdgpu.gttsize=122880
-
-# Then update grub
-sudo update-grub
+GRUB_CMDLINE_LINUX_DEFAULT="... ttm.pages_limit=24576000 amdgpu.no_system_mem_limit=1 amdgpu.gttsize=117760"
 ```
 
-### 2. Kernel Version
-Linux 6.15+ provides ~15% better performance on Strix Halo. Update if possible.
+Then `sudo update-grub && sudo reboot`. This unlocks ~90+ GB of GPU memory.
 
-### 3. ROCm Installation
+### 2. ROCm Environment Variables
+
+Critical for Strix Halo unified memory (set automatically by all scripts):
+
 ```bash
-# Install ROCm 6.4+ for best gfx1151 support
-# Follow official AMD instructions for your distro
+export HSA_ENABLE_SDMA=0
+export GPU_MAX_HEAP_SIZE=100
+export GPU_MAX_ALLOC_PERCENT=100
+export GPU_SINGLE_ALLOC_PERCENT=100
+export GPU_FORCE_64BIT_PTR=1
+export HIP_VISIBLE_DEVICES=0
+export HSA_OVERRIDE_GFX_VERSION=11.5.1
 ```
 
-### 4. rocWMMA for Better Performance
-rocWMMA significantly improves matrix operations. Many pre-built containers include it:
-- https://github.com/kyuz0/amd-strix-halo-toolboxes
+### 3. Kernel Version
+Linux 6.15+ recommended for best Strix Halo performance.
 
-## Model Selection Guide
+---
 
-### For Claude Code (Local LLM)
+## Context Length & Memory
 
-Recommended multi-model setup for running Claude Code with local models:
+With 128 GB unified memory:
 
-| Role | Model | Why |
-|------|-------|-----|
-| **Background** | llama-3.2-3b | Fast (68.8 tok/s), handles simple tasks like titles |
-| **Default** | qwen2.5-coder-32b | Excellent coding ability, good context handling |
-| **Reasoning** | deepseek-r1-32b | Strong reasoning, R1 architecture |
+| Model | Context | Approx. Memory |
+|-------|---------|----------------|
+| 7B Q5 | 32K | ~7 GB |
+| 32B Q4 | 8K | ~20 GB |
+| 32B Q4 | 32K | ~26 GB |
+| 70B Q4 | 8K | ~42 GB |
+| 70B Q4 | 32K | ~52 GB |
+| Qwen3-235B Q3 | 16K | ~105 GB |
+| GPT-OSS 120B MXFP4 | 131K | ~64 GB |
 
-**Total memory: ~56GB** (leaves room for system + context)
-
-Setup instructions: See [claude-code-router/README.md](claude-code-router/README.md)
-
-### For General Chat
-1. **Quick responses**: Qwen 2.5 7B or Llama 3.1 8B
-2. **Best quality**: Llama 3.3 70B or Qwen 2.5 72B
-3. **Balance**: Qwen 2.5 32B
-
-### For Coding
-1. **Fast**: DeepSeek Coder V2 16B (63.2 tok/s, MoE architecture)
-2. **Best**: Qwen 2.5 Coder 32B (10.5 tok/s, excellent quality)
-3. **Large context**: CodeLlama 70B
-
-### For Reasoning/Math
-1. DeepSeek R1 Distill 32B (best quality/speed, 10.5 tok/s)
-2. Qwen 3 235B Thinking (maximum capability, 8.3 tok/s)
-3. DeepSeek R1 Distill 70B (balance)
-
-### For Vision Tasks
-1. LLaVA 1.6 7B (fast)
-2. Qwen 2.5 VL 7B (good quality)
-3. Pixtral 12B (balance)
-
-### For RAG/Tool Use
-1. Command R+ 104B (Q3_K fits in memory)
-2. Mistral Small 24B
-
-## Context Length Considerations
-
-With 128GB, you can run models with extended context:
-
-| Model | Context | Memory Usage |
-|-------|---------|--------------|
-| 32B Q4 | 8K | ~22GB |
-| 32B Q4 | 32K | ~28GB |
-| 70B Q4 | 8K | ~45GB |
-| 70B Q4 | 32K | ~55GB |
-| Qwen 235B Q3 | 65K | ~110GB |
-| Qwen 235B Q3 | 131K | ~122GB |
+GPT-OSS 120B is unique — its ISWA sliding window attention means context length has minimal impact on memory (~4.5 GB KV cache at 131K tokens).
 
 ## Quantization Guide
 
@@ -201,24 +293,29 @@ With 128GB, you can run models with extended context:
 | Q6_K | Very low | ~60% | Models up to 32B |
 | Q5_K_M | Low | ~65% | Models up to 70B |
 | Q4_K_M | Acceptable | ~70% | 70B models |
-| Q3_K | Noticeable | ~80% | 100B+ models |
+| Q3_K_M | Noticeable | ~80% | 100B+ models |
+| MXFP4 | Low | ~75% | MoE models (when available) |
 
 ## Troubleshooting
 
 ### Out of Memory
-- Use lower quantization (Q4 → Q3)
+- Use lower quantization (Q6 → Q4 → Q3)
 - Reduce context length
-- Close other applications
+- Use `--no-mmap` for large models
+- Check GPU memory: `cat /sys/class/drm/card*/device/mem_info_gtt_total`
 
 ### Slow Performance
-- Ensure GPU offloading is enabled (`-ngl 999`)
+- Ensure full GPU offloading: `-ngl 999`
 - Check kernel version (6.15+ recommended)
-- Try Vulkan backend instead of ROCm
+- Verify kernel params for GPU memory are applied
 
 ### Model Won't Load
-- Check GTT size: `cat /sys/class/drm/card*/device/mem_info_gtt_total`
-- Verify HIP/ROCm is detecting gfx1151
-- Try running in a container with proper ROCm setup
+- Verify GPU memory limit is unlocked (kernel params above)
+- Check ROCm detects gfx1151: `rocm-smi`
+- Try `--no-mmap` flag
+- Some older GGUF files may not load with newer llama.cpp builds
+
+---
 
 ## Resources
 
@@ -231,12 +328,12 @@ With 128GB, you can run models with extended context:
 
 | Category | Approximate Size |
 |----------|-----------------|
-| Fast Models | ~25GB |
-| Balanced Models | ~80GB |
-| Large Models | ~130GB |
-| Massive Models | ~160GB |
-| Coding Models | ~80GB |
-| Vision Models | ~35GB |
-| Specialized | ~125GB |
-| **Essential Pack** | **~150GB** |
-| **Everything** | **~600GB+** |
+| Fast Models | ~25 GB |
+| Balanced Models | ~80 GB |
+| Large Models | ~130 GB |
+| Massive Models | ~160 GB |
+| Coding Models | ~80 GB |
+| Vision Models | ~35 GB |
+| Specialized | ~125 GB |
+| **Essential Pack** | **~150 GB** |
+| **Everything** | **~600 GB+** |
