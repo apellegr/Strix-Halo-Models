@@ -21,6 +21,9 @@ stress-results/
 *.port
 *.log
 
+# Python
+__pycache__/
+
 # Dependencies
 node_modules/
 
