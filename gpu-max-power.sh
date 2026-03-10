@@ -11,13 +11,14 @@ echo ""
 echo "[1/3] Setting GPU performance level to 'high'..."
 echo "high" | sudo tee /sys/class/drm/card0/device/power_dpm_force_performance_level > /dev/null
 
-# Set power limits (140W package, 120W APU)
-echo "[2/3] Setting power limits (STAPM=140W, PPT=140W, APU=120W)..."
-sudo ryzenadj --stapm-limit=140000 --fast-limit=140000 --slow-limit=140000 --apu-slow-limit=120000 2>&1 | grep -E "^(CPU|SMU)" || true
+# Set power limits to maximum (140W across the board)
+echo "[2/3] Setting power limits (STAPM=140W, PPT=140W, APU=140W)..."
+sudo ryzenadj --stapm-limit=140000 --fast-limit=140000 --slow-limit=140000 --apu-slow-limit=140000 2>&1 | grep -E "^(CPU|SMU)" || true
 
-# Set CPU to powersave to give GPU more headroom
-echo "[3/3] Setting CPU governor to 'powersave'..."
-echo "powersave" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor > /dev/null
+# Set CPU to schedutil - balanced governor that scales with load
+# Less aggressive than powersave while still allowing GPU priority
+echo "[3/3] Setting CPU governor to 'schedutil'..."
+echo "schedutil" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor > /dev/null
 
 echo ""
 echo "=== Configuration Applied ==="

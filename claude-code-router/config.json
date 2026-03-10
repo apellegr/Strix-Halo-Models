@@ -7,65 +7,38 @@
   "APIKEY": "sk-dummy",
   "API_TIMEOUT_MS": "600000",
   "PROXY_URL": "",
-  "transformers": [
-    {
-      "name": "hermes-tool-adapter",
-      "path": "~/.claude-code-router/plugins/hermes-tool-adapter.js"
-    }
-  ],
+  "transformers": [],
   "Providers": [
     {
-      "name": "local-fast",
-      "api_base_url": "http://localhost:8081/v1/chat/completions",
+      "name": "secretary",
+      "api_base_url": "http://localhost:8001/v1/chat/completions",
       "api_key": "not-needed",
-      "models": [
-        "llama-3.2-3b"
-      ],
-      "transformer": {
-        "use": []
-      }
+      "models": ["qwen-2.5-coder-14b"]
     },
     {
-      "name": "local-coder",
-      "api_base_url": "http://localhost:8082/v1/chat/completions",
+      "name": "archivist",
+      "api_base_url": "http://localhost:8002/v1/chat/completions",
       "api_key": "not-needed",
-      "models": [
-        "hermes-4-14b"
-      ],
-      "transformer": {
-        "use": ["hermes-tool-adapter"]
-      }
+      "models": ["glm-4.7-flash"]
     },
     {
-      "name": "local-reasoning",
-      "api_base_url": "http://localhost:8083/v1/chat/completions",
+      "name": "concierge",
+      "api_base_url": "http://localhost:8003/v1/chat/completions",
       "api_key": "not-needed",
-      "models": [
-        "hermes-4-70b"
-      ],
-      "transformer": {
-        "use": ["hermes-tool-adapter"]
-      }
+      "models": ["llama-4-scout"]
     }
   ],
   "StatusLine": {
-    "enabled": false,
-    "currentStyle": "default",
-    "default": {
-      "modules": []
-    },
-    "powerline": {
-      "modules": []
-    }
+    "enabled": false
   },
   "Router": {
-    "background": "local-fast,llama-3.2-3b",
-    "default": "local-coder,hermes-4-14b",
-    "think": "local-reasoning,hermes-4-70b",
-    "longContext": "local-coder,hermes-4-14b",
+    "background": "concierge,llama-4-scout",
+    "default": "concierge,llama-4-scout",
+    "think": "archivist,glm-4.7-flash",
+    "longContext": "archivist,glm-4.7-flash",
     "longContextThreshold": 60000,
-    "webSearch": "local-fast,llama-3.2-3b",
-    "image": "local-coder,hermes-4-14b"
+    "webSearch": "concierge,llama-4-scout",
+    "image": "concierge,llama-4-scout"
   },
   "CUSTOM_ROUTER_PATH": ""
 }

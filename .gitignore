@@ -2,12 +2,28 @@
 models/
 *.gguf
 
-# Benchmark results (generated JSON files)
+# Benchmark results (generated data files)
 benchmarks/*.json
+benchmarks/*.csv
+benchmarks/*.txt
 # Re-include bandwidth benchmark source code
 !benchmarks/bandwidth/
+
+# Test output directories
+sweep-results/
+stress-results/
+
+# Environment (may contain local paths/secrets)
+.env
 
 # Runtime files
 *.pid
 *.port
 *.log
+
+# Dependencies
+node_modules/
+
+# Backup files
+*.bak
+*.backup
