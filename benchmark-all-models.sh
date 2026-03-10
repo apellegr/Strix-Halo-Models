@@ -19,7 +19,7 @@ set -euo pipefail
 #===============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MODELS_DIR="${MODELS_DIR:-/home/apellegr/Strix-Halo-Models/models}"
+MODELS_DIR="${MODELS_DIR:-$SCRIPT_DIR/models}"
 OUTPUT_DIR="${OUTPUT_DIR:-$SCRIPT_DIR/benchmarks}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 OUTPUT_FILE="${OUTPUT_DIR}/benchmark_${TIMESTAMP}.csv"

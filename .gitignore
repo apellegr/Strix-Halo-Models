@@ -24,6 +24,11 @@ stress-results/
 # Dependencies
 node_modules/
 
+# IDE and tool configs
+.claude/
+.vscode/
+.idea/
+
 # Backup files
 *.bak
 *.backup
