@@ -5,25 +5,30 @@ A comprehensive toolkit for running local LLM inference on AMD Ryzen AI Max+ 395
 ## Highlights
 
 - Run **235B-parameter models** locally on a single chip with 128GB unified memory
-- **51 tok/s generation** on GPT-OSS 120B, **12.8 tok/s** on Qwen3-235B Thinking
+- **70 tok/s generation** on Qwen3 Coder 30B MoE, **51 tok/s** on GPT-OSS 120B
 - Hybrid CPU+GPU inference optimized for Strix Halo's unified memory architecture
 - OpenAI-compatible API that works with Open WebUI, Continue, Claude Code, and other clients
-- Pre-tuned configurations for 28+ models with benchmark data
+- Pre-tuned configurations for 38 models with benchmark data
 
 ## Benchmarks
 
-Measured on AMD Ryzen AI Max+ 395, 128GB LPDDR5X, ROCm 7.2, llama.cpp:
+Measured on AMD Ryzen AI Max+ 395, 128GB LPDDR5X, ROCm 7.2, llama.cpp (Lychee b8182). All models fully GPU offloaded (ngl=999) except Qwen3-235B (80/95 layers).
 
-| Model | Params | GPU Layers | Prompt (tok/s) | Generation (tok/s) | GPU Memory |
-|-------|--------|-----------|----------------|-------------------|------------|
-| **GPT-OSS 120B** (MXFP4) | 120B | 37/37 | 153 | **51.0** | 63 GB |
-| **Qwen 3.5 122B-A10B** (MXFP4) | 122B (10B active) | 49/49 | - | - | ~70 GB |
-| **Qwen3-235B Thinking** (Q3_K_M) | 235B (22B active) | 80/95 | 86 | **12.8** | 88 GB |
-| **Qwen 2.5 Coder 32B** (Q4_K_M) | 32B | 80 | 317 | **10.5** | 24 GB |
-| **DeepSeek R1 32B** (Q4_K_M) | 32B | 80 | 316 | **10.5** | 24 GB |
-| **Llama 3.2 3B** (Q6_K) | 3B | 999 | 2,154 | **68.8** | 8 GB |
+| Model | Params | Quant | Prompt (tok/s) | Generation (tok/s) | Size |
+|-------|--------|-------|----------------|-------------------|------|
+| **Qwen3 Coder 30B** | 30B MoE (3B active) | Q4_K_M | 812 | **69.6** | 17 GB |
+| **Llama 3.2 3B** | 3B | Q6_K | 1,538 | **69.0** | 3 GB |
+| **DeepSeek Coder V2 16B** | 16B MoE | Q5_K_M | 1,227 | **68.0** | 11 GB |
+| **GLM-4.7 Flash** | MoE | Q4_K_M | 897 | **54.1** | 17 GB |
+| **GPT-OSS 120B** | 120B | MXFP4 | 174 | **51.1** | 59 GB |
+| **Llama 4 Scout** | 109B MoE (17B-16E) | Q4_K_M | 282 | **19.2** | 61 GB |
+| **Qwen 3.5 122B-A10B** | 122B MoE (10B active) | MXFP4 | 136 | **18.3** | 70 GB |
+| **Qwen 2.5 Coder 32B** | 32B | Q4_K_M | 264 | **11.0** | 19 GB |
+| **DeepSeek R1 32B** | 32B | Q4_K_M | 255 | **11.0** | 19 GB |
+| **Qwen3-235B Thinking** | 235B MoE (22B active) | Q3_K_M | 135 | **7.8** | 105 GB |
+| **Llama 3.3 70B** | 70B | Q6_K | 86 | **3.8** | 54 GB |
 
-The system is **memory-bandwidth bound** (~85 GB/s host-to-device). The 96MB Infinity Cache provides ~2x amplification for smaller working sets. See [docs/MODELS.md](docs/MODELS.md) for the full model guide.
+MoE models achieve 3-14x higher TG than similarly-sized dense models by only activating a fraction of parameters per token. The system is **memory-bandwidth bound** (~85 GB/s host-to-device). See [docs/MODELS.md](docs/MODELS.md) for the full model guide and all 38 benchmarked models.
 
 ## Hardware Requirements
 
@@ -81,10 +86,10 @@ Pre-configured scripts for popular models. Set `MODELS_DIR`, `LLAMA_SERVER`, and
 
 | Script | Model | Generation | Memory |
 |--------|-------|-----------|--------|
-| `scripts/server/start-qwen3-235b.sh` | Qwen3-235B Thinking (Q3_K_M) | 12.8 tok/s | ~88 GB |
-| `scripts/server/start-qwen35-122b.sh` | Qwen 3.5 122B-A10B (MXFP4) | MoE, 10B active | ~70 GB |
-| `scripts/server/start-gpt-oss-120b.sh` | GPT-OSS 120B (MXFP4) | 51 tok/s | ~63 GB |
-| `scripts/server/start-coder-32b.sh` | Qwen 2.5 Coder 32B (Q4_K_M) | 10.5 tok/s | ~24 GB |
+| `scripts/server/start-qwen3-235b.sh` | Qwen3-235B Thinking (Q3_K_M) | 7.8 tok/s | ~105 GB |
+| `scripts/server/start-qwen35-122b.sh` | Qwen 3.5 122B-A10B (MXFP4) | 18.3 tok/s | ~70 GB |
+| `scripts/server/start-gpt-oss-120b.sh` | GPT-OSS 120B (MXFP4) | 51.1 tok/s | ~59 GB |
+| `scripts/server/start-coder-32b.sh` | Qwen 2.5 Coder 32B (Q4_K_M) | 11.0 tok/s | ~19 GB |
 
 ## Downloading Models
 
@@ -315,10 +320,10 @@ Strix Halo uses unified memory where CPU and GPU share the same 128GB RAM pool:
 
 | Model Size | Typical GPU Layers | Memory Usage |
 |------------|-------------------|--------------|
-| 3-9B (Q5-Q6) | 999 (full GPU) | 6-12 GB |
-| 14-32B (Q4-Q5) | 70-80 | 15-28 GB |
+| 3-9B (Q5-Q6) | 999 (full GPU) | 3-7 GB |
+| 14-32B (Q4-Q5) | 999 (full GPU) | 10-19 GB |
 | 70B (Q4) | 999 (full GPU) | 40-55 GB |
-| 120-235B (Q3/MXFP4) | 37-80 | 63-90 GB |
+| 120-235B (Q3/MXFP4) | 80-999 | 59-105 GB |
 
 ---
 
