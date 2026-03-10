@@ -18,6 +18,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$SCRIPT_DIR"
 
 # Configuration
@@ -59,7 +60,7 @@ start_server() {
     echo ""
 
     # Check current batch_size
-    local batch_size=$(jq -r ".models[\"$model\"].batch_size // 1024" model-configs.json)
+    local batch_size=$(jq -r ".models[\"$model\"].batch_size // 1024" "$REPO_DIR/model-configs.json")
     log_info "Batch size: $batch_size"
 
     # Start the llama-server

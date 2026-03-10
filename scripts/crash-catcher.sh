@@ -12,7 +12,8 @@
 #===============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RESULTS_DIR="${RESULTS_DIR:-$SCRIPT_DIR/crash-reports}"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+RESULTS_DIR="${RESULTS_DIR:-$REPO_DIR/crash-reports}"
 
 #===============================================================================
 # Colors

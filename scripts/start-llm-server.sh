@@ -23,17 +23,18 @@
 #===============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Source environment file if it exists
-[[ -f "$SCRIPT_DIR/.env" ]] && source "$SCRIPT_DIR/.env"
+[[ -f "$REPO_DIR/.env" ]] && source "$REPO_DIR/.env"
 
 # Ensure MODELS_DIR is an absolute path
-MODELS_DIR="${MODELS_DIR:-$SCRIPT_DIR/models}"
-[[ "$MODELS_DIR" != /* ]] && MODELS_DIR="$SCRIPT_DIR/$MODELS_DIR"
-MODELS_DIR="$(cd "$MODELS_DIR" 2>/dev/null && pwd)" || MODELS_DIR="$SCRIPT_DIR/models"
+MODELS_DIR="${MODELS_DIR:-$REPO_DIR/models}"
+[[ "$MODELS_DIR" != /* ]] && MODELS_DIR="$REPO_DIR/$MODELS_DIR"
+MODELS_DIR="$(cd "$MODELS_DIR" 2>/dev/null && pwd)" || MODELS_DIR="$REPO_DIR/models"
 RUN_DIR="${RUN_DIR:-$HOME/.llm-servers}"
 LLAMA_SERVER="${LLAMA_SERVER:-$HOME/.local/bin/llama-server}"
-CONFIG_FILE="${CONFIG_FILE:-$SCRIPT_DIR/model-configs.json}"
+CONFIG_FILE="${CONFIG_FILE:-$REPO_DIR/model-configs.json}"
 
 # Default server settings
 DEFAULT_HOST="0.0.0.0"

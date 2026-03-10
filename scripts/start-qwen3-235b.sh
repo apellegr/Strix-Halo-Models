@@ -13,9 +13,10 @@
 # You can set these in a .env file next to this script or export them beforehand.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [[ -f "$SCRIPT_DIR/.env" ]]; then
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+if [[ -f "$REPO_DIR/.env" ]]; then
   # shellcheck disable=SC1091
-  source "$SCRIPT_DIR/.env"
+  source "$REPO_DIR/.env"
 fi
 
 # ROCm environment for Strix Halo (gfx1151)

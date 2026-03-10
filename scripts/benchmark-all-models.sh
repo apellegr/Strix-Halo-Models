@@ -19,8 +19,9 @@ set -euo pipefail
 #===============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MODELS_DIR="${MODELS_DIR:-$SCRIPT_DIR/models}"
-OUTPUT_DIR="${OUTPUT_DIR:-$SCRIPT_DIR/benchmarks}"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+MODELS_DIR="${MODELS_DIR:-$REPO_DIR/models}"
+OUTPUT_DIR="${OUTPUT_DIR:-$REPO_DIR/benchmarks}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 OUTPUT_FILE="${OUTPUT_DIR}/benchmark_${TIMESTAMP}.csv"
 REPORT_FILE="${OUTPUT_DIR}/benchmark_${TIMESTAMP}.md"

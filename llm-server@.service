@@ -21,8 +21,8 @@ Environment="HIP_VISIBLE_DEVICES=0"
 Environment="HSA_OVERRIDE_GFX_VERSION=11.5.1"
 
 # Run in foreground mode for systemd
-ExecStart=%h/Strix-Halo-Models/start-llm-server.sh run %i
-ExecStop=%h/Strix-Halo-Models/start-llm-server.sh stop %i
+ExecStart=%h/Strix-Halo-Models/scripts/start-llm-server.sh run %i
+ExecStop=%h/Strix-Halo-Models/scripts/start-llm-server.sh stop %i
 
 # Restart on failure
 Restart=on-failure

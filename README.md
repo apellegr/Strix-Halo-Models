@@ -44,7 +44,7 @@ The system is **memory-bandwidth bound** (~85 GB/s host-to-device). The 96MB Inf
 
 ```bash
 # Use the included installation script
-./install-llama-cpp.sh
+./scripts/install-llama-cpp.sh
 
 # Or build manually with ROCm support
 git clone https://github.com/ggerganov/llama.cpp
@@ -63,13 +63,13 @@ cp build/bin/llama-* ~/.local/bin/
 cp .env.example .env
 
 # 2. Download models
-./download_strix_halo_models.sh --essential
+./scripts/download_strix_halo_models.sh --essential
 
 # 3. Start a model (using the server manager)
-./start-llm-server.sh qwen3-235b-thinking
+./scripts/start-llm-server.sh qwen3-235b-thinking
 
 # 4. Or use a quick-start script directly
-./start-qwen3-235b.sh
+./scripts/start-qwen3-235b.sh
 
 # 5. Test the API
 curl http://localhost:8081/v1/models
@@ -81,25 +81,25 @@ Pre-configured scripts for popular models. Set `MODELS_DIR`, `LLAMA_SERVER`, and
 
 | Script | Model | Generation | Memory |
 |--------|-------|-----------|--------|
-| `start-qwen3-235b.sh` | Qwen3-235B Thinking (Q3_K_M) | 12.8 tok/s | ~88 GB |
-| `start-qwen35-122b.sh` | Qwen 3.5 122B-A10B (MXFP4) | MoE, 10B active | ~70 GB |
-| `start-gpt-oss-120b.sh` | GPT-OSS 120B (MXFP4) | 51 tok/s | ~63 GB |
-| `start-coder-32b.sh` | Qwen 2.5 Coder 32B (Q4_K_M) | 10.5 tok/s | ~24 GB |
+| `scripts/start-qwen3-235b.sh` | Qwen3-235B Thinking (Q3_K_M) | 12.8 tok/s | ~88 GB |
+| `scripts/start-qwen35-122b.sh` | Qwen 3.5 122B-A10B (MXFP4) | MoE, 10B active | ~70 GB |
+| `scripts/start-gpt-oss-120b.sh` | GPT-OSS 120B (MXFP4) | 51 tok/s | ~63 GB |
+| `scripts/start-coder-32b.sh` | Qwen 2.5 Coder 32B (Q4_K_M) | 10.5 tok/s | ~24 GB |
 
 ## Downloading Models
 
 ```bash
 # Download essential pack (best model per category, ~150GB)
-./download_strix_halo_models.sh --essential
+./scripts/download_strix_halo_models.sh --essential
 
 # Or run interactive menu
-./download_strix_halo_models.sh
+./scripts/download_strix_halo_models.sh
 
 # Preview downloads without downloading
-DRY_RUN=1 ./download_strix_halo_models.sh --all
+DRY_RUN=1 ./scripts/download_strix_halo_models.sh --all
 
 # Custom download directory
-MODELS_DIR=/mnt/nvme/models ./download_strix_halo_models.sh --essential
+MODELS_DIR=/mnt/nvme/models ./scripts/download_strix_halo_models.sh --essential
 ```
 
 ### Available Categories
@@ -119,33 +119,41 @@ MODELS_DIR=/mnt/nvme/models ./download_strix_halo_models.sh --essential
 
 ```
 Strix-Halo-Models/
-├── docs/                         # Documentation
-│   ├── MODELS.md                 # Model selection guide & benchmarks
-│   ├── RATE-LIMITING.md          # Rate limiting for GPU stability
-│   └── ROCM-MEMORY-LIMIT-INVESTIGATION.md  # GPU memory deep-dive
-├── claude-code-router/           # Claude Code local LLM integration
-│   ├── config.json               # Router configuration
-│   ├── install.sh                # Router installation script
-│   └── README.md                 # Setup documentation
-├── benchmarks/                   # Benchmark results and tools
-│   └── bandwidth/                # Memory bandwidth benchmarks
-├── scripts/                      # Monitoring scripts
-│   ├── amd-gpu-metrics.sh        # GPU metrics collection
-│   └── rapl-power-metrics.sh     # CPU power metrics
-├── start-llm-server.sh          # Main server management script
-├── start-qwen3-235b.sh          # Quick-start: Qwen3 235B Thinking
-├── start-qwen35-122b.sh         # Quick-start: Qwen 3.5 122B-A10B
-├── start-gpt-oss-120b.sh        # Quick-start: GPT-OSS 120B
-├── start-coder-32b.sh           # Quick-start: Qwen 2.5 Coder 32B
-├── start-claude-code-models.sh  # Start models for Claude Code
-├── benchmark-model.sh           # Benchmarking tool
-├── benchmark-all-models.sh      # Batch benchmark script
-├── model-configs.json           # Optimized configurations (28+ models)
-├── download_strix_halo_models.sh # Model downloader
-├── install-llama-cpp.sh         # llama.cpp installer
-├── llm-server@.service          # Systemd service template
-├── .env.example                 # Environment config template
-└── .env                         # Your local config (not committed)
+├── model-configs.json              # Optimized configurations (28+ models)
+├── llm-server@.service             # Systemd service template
+├── .env.example                    # Environment config template
+├── .env                            # Your local config (not committed)
+├── docs/                           # Documentation
+│   ├── MODELS.md                   # Model selection guide & benchmarks
+│   ├── RATE-LIMITING.md            # Rate limiting for GPU stability
+│   └── ROCM-MEMORY-LIMIT-INVESTIGATION.md
+├── claude-code-router/             # Claude Code local LLM integration
+├── benchmarks/                     # Benchmark results and tools
+│   └── bandwidth/                  # Memory bandwidth benchmarks
+└── scripts/                        # All scripts
+    ├── start-llm-server.sh         # Main server management script
+    ├── llm-server-manager.sh       # Multi-model server manager
+    ├── start-qwen35-122b.sh        # Quick-start: Qwen 3.5 122B-A10B
+    ├── start-qwen3-235b.sh         # Quick-start: Qwen3 235B Thinking
+    ├── start-gpt-oss-120b.sh       # Quick-start: GPT-OSS 120B
+    ├── start-coder-32b.sh          # Quick-start: Qwen 2.5 Coder 32B
+    ├── start-claude-code-models.sh # Start models for Claude Code
+    ├── start-llm-with-rate-limit.sh # Server + rate limiting proxy
+    ├── llm-rate-limiter.py         # Rate limiting HTTP proxy
+    ├── benchmark-model.sh          # Benchmarking tool
+    ├── benchmark-all-models.sh     # Batch benchmark script
+    ├── batch-size-sweep.sh         # Batch size optimization
+    ├── stress-test.sh              # Load testing suite
+    ├── crash-catcher.sh            # GPU crash monitoring
+    ├── gpu-monitor.sh              # Real-time GPU monitoring
+    ├── gpu-power.sh                # GPU power/performance control
+    ├── gpu-max-power.sh            # Quick max power script
+    ├── verify-gpu-memory.sh        # Memory config verification
+    ├── system-status.sh            # System status dashboard
+    ├── install-llama-cpp.sh        # llama.cpp installer
+    ├── download_strix_halo_models.sh # Model downloader
+    ├── amd-gpu-metrics.sh          # GPU metrics collection
+    └── rapl-power-metrics.sh       # CPU power metrics
 ```
 
 ---
@@ -156,29 +164,29 @@ Strix-Halo-Models/
 
 ```bash
 # Start with auto-assigned port (finds next available starting from 8081)
-./start-llm-server.sh qwen3-235b-thinking
+./scripts/start-llm-server.sh qwen3-235b-thinking
 
 # Start on a specific port
-./start-llm-server.sh qwen2.5-7b 8082
+./scripts/start-llm-server.sh qwen2.5-7b 8082
 
 # Start multiple models
-./start-llm-server.sh qwen3-235b-thinking  # Gets 8081
-./start-llm-server.sh qwen2.5-7b           # Gets 8082
+./scripts/start-llm-server.sh qwen3-235b-thinking  # Gets 8081
+./scripts/start-llm-server.sh qwen2.5-7b           # Gets 8082
 ```
 
 ### Check Status
 
 ```bash
-./start-llm-server.sh status
+./scripts/start-llm-server.sh status
 ```
 
 ### Stop / Logs / List
 
 ```bash
-./start-llm-server.sh stop qwen3-235b-thinking  # Stop specific model
-./start-llm-server.sh stop                       # Stop all
-./start-llm-server.sh logs qwen3-235b-thinking   # View logs
-./start-llm-server.sh list                       # List available models
+./scripts/start-llm-server.sh stop qwen3-235b-thinking  # Stop specific model
+./scripts/start-llm-server.sh stop                       # Stop all
+./scripts/start-llm-server.sh logs qwen3-235b-thinking   # View logs
+./scripts/start-llm-server.sh list                       # List available models
 ```
 
 ---
@@ -187,22 +195,22 @@ Strix-Halo-Models/
 
 ```bash
 # Quick benchmark
-./benchmark-model.sh qwen2.5-7b
+./scripts/benchmark-model.sh qwen2.5-7b
 
 # Find optimal GPU layers + batch size and save to model-configs.json
-./benchmark-model.sh qwen3-235b-thinking --optimize
+./scripts/benchmark-model.sh qwen3-235b-thinking --optimize
 
 # GPU layer sweep
-./benchmark-model.sh qwen3-235b --gpu-sweep
+./scripts/benchmark-model.sh qwen3-235b --gpu-sweep
 
 # Batch size sweep
-./benchmark-model.sh qwen2.5-32b --batch-sweep
+./scripts/benchmark-model.sh qwen2.5-32b --batch-sweep
 
 # Compare models
-./benchmark-model.sh --compare qwen2.5-7b llama-3.1-8b mistral-7b
+./scripts/benchmark-model.sh --compare qwen2.5-7b llama-3.1-8b mistral-7b
 
 # Benchmark all models
-./benchmark-all-models.sh
+./scripts/benchmark-all-models.sh
 ```
 
 ---
@@ -331,7 +339,7 @@ loginctl enable-linger $USER
 
 ```bash
 # 1. Start a model
-./start-llm-server.sh qwen3-235b-thinking
+./scripts/start-llm-server.sh qwen3-235b-thinking
 
 # 2. In Open WebUI: Settings -> Connections -> OpenAI API
 #    URL: http://localhost:8081/v1
@@ -349,7 +357,7 @@ Run Claude Code with local LLM models using the Claude Code Router:
 ./claude-code-router/install.sh
 
 # 2. Start models and router
-./start-claude-code-models.sh all
+./scripts/start-claude-code-models.sh all
 
 # 3. Use Claude Code with local models
 export ANTHROPIC_BASE_URL=http://localhost:3456
@@ -398,13 +406,13 @@ The `benchmarks/bandwidth/` directory contains tools to measure memory bandwidth
 
 ### Model Won't Start (OOM)
 ```bash
-./benchmark-model.sh <model-name> --optimize  # Find working GPU layers
+./scripts/benchmark-model.sh <model-name> --optimize  # Find working GPU layers
 ```
 
 ### Slow Performance
-1. Check GPU offload: `./start-llm-server.sh logs <model-name> | grep "offload"`
+1. Check GPU offload: `./scripts/start-llm-server.sh logs <model-name> | grep "offload"`
 2. Verify ROCm: `rocm-smi`
-3. Re-optimize: `./benchmark-model.sh <model-name> --optimize`
+3. Re-optimize: `./scripts/benchmark-model.sh <model-name> --optimize`
 
 ### GPU Crashes Under Load
 See [docs/RATE-LIMITING.md](docs/RATE-LIMITING.md) for the rate-limiting solution to MES scheduler crashes.
