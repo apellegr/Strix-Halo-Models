@@ -14,7 +14,7 @@
 #===============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 RESULTS_DIR="${RESULTS_DIR:-$REPO_DIR/stress-results}"
 LOG_FILE="$RESULTS_DIR/gpu-monitor-$(date +%Y%m%d_%H%M%S).log"
 

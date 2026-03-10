@@ -14,7 +14,7 @@
 set -o pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 RESULTS_DIR="${RESULTS_DIR:-$REPO_DIR/sweep-results}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 RESULTS_FILE="$RESULTS_DIR/batch-sweep-$TIMESTAMP.csv"
@@ -90,14 +90,14 @@ restart_server() {
     local batch_size=$1
 
     log "Stopping current server..."
-    "$SCRIPT_DIR/start-llm-server.sh" stop "$MODEL_NAME" >/dev/null 2>&1
+    "$REPO_DIR/scripts/server/start-llm-server.sh" stop "$MODEL_NAME" >/dev/null 2>&1
     sleep 3
 
     log "Updating batch_size to $batch_size..."
     update_batch_size "$batch_size"
 
     log "Starting server with batch_size=$batch_size..."
-    "$SCRIPT_DIR/start-llm-server.sh" "$MODEL_NAME" "$SERVER_PORT" >/dev/null 2>&1
+    "$REPO_DIR/scripts/server/start-llm-server.sh" "$MODEL_NAME" "$SERVER_PORT" >/dev/null 2>&1
 
     # Wait for server to be ready
     local timeout=300

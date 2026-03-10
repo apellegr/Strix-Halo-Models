@@ -20,7 +20,7 @@
 set -o pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 RESULTS_DIR="${RESULTS_DIR:-$REPO_DIR/stress-results}"
 LOG_FILE="$RESULTS_DIR/stress-test-$(date +%Y%m%d_%H%M%S).log"
 
@@ -645,7 +645,7 @@ main() {
     # Check server is up
     if [[ "$(get_server_health)" != "healthy" ]]; then
         log ERROR "Server at $API_URL is not responding!"
-        log ERROR "Start the server first: ./scripts/start-llm-server.sh <model_name>"
+        log ERROR "Start the server first: ./scripts/server/start-llm-server.sh <model_name>"
         exit 1
     fi
 

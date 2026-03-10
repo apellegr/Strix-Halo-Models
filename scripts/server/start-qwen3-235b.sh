@@ -13,7 +13,7 @@
 # You can set these in a .env file next to this script or export them beforehand.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 if [[ -f "$REPO_DIR/.env" ]]; then
   # shellcheck disable=SC1091
   source "$REPO_DIR/.env"

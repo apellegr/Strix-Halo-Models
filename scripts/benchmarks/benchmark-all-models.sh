@@ -19,7 +19,7 @@ set -euo pipefail
 #===============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 MODELS_DIR="${MODELS_DIR:-$REPO_DIR/models}"
 OUTPUT_DIR="${OUTPUT_DIR:-$REPO_DIR/benchmarks}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)

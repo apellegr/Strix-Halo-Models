@@ -19,7 +19,7 @@
 #===============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Source environment file if it exists
 [[ -f "$REPO_DIR/.env" ]] && source "$REPO_DIR/.env"

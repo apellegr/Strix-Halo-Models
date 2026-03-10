@@ -23,7 +23,7 @@
 #===============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Source environment file if it exists
 [[ -f "$REPO_DIR/.env" ]] && source "$REPO_DIR/.env"
@@ -455,7 +455,7 @@ start_model() {
     else
         print_header "Starting $model_name"
         print_warning "No optimized config found - using defaults"
-        print_info "Run: ./benchmark-model.sh $model_name --optimize"
+        print_info "Run: ./scripts/benchmarks/benchmark-model.sh $model_name --optimize"
     fi
     print_info "Model: $(basename "$model_path")"
     print_info "GPU Layers: $gpu_layers"
