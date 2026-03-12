@@ -46,11 +46,12 @@ exec "$LLAMA_SERVER" \
   --n-gpu-layers 999 \
   --ctx-size 262144 \
   --parallel 1 \
-  --batch-size 2048 \
-  --ubatch-size 512 \
+  --batch-size 4096 \
+  --ubatch-size 2048 \
   --threads 16 \
   --no-mmap \
   --jinja \
   --metrics \
   --alias qwen3.5-122b \
+  --flash-attn on \
   --reasoning-budget 0
