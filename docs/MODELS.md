@@ -44,7 +44,7 @@ Exact software stack used for all benchmarks (March 10, 2026):
 | **HIP Runtime** | 7.2.26015.70200-43 |
 | **rocBLAS** | 5.2.0.70200-43 |
 | **amdgpu driver** | In-kernel (6.17.0-14-generic) |
-| **llama.cpp** | [Lychee-Technology](https://github.com/Lychee-Technology/llama.cpp) build b8182, commit `05728db` |
+| **llama.cpp** | [Lychee-Technology](https://github.com/Lychee-Technology/llama.cpp) build b8280, commit `b2e1427` |
 | **ggml libs** | 0.9.7 (libggml-base, libggml-cpu, libggml-hip) |
 | **libllama** | 0.0.1 |
 | **Compiler** | Clang 22.0.0 (ROCm HIP), GCC 15.2.0 (system) |
