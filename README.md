@@ -438,6 +438,7 @@ See [docs/RATE-LIMITING.md](docs/RATE-LIMITING.md) for the rate-limiting solutio
 - [claude-code-router/README.md](claude-code-router/README.md) - Claude Code local LLM setup
 - [llama.cpp](https://github.com/ggerganov/llama.cpp) - Inference engine
 - [Strix Halo Homelab Wiki](https://strixhalo-homelab.d7.wtf/) - Community resources
+- [Strix Halo Guide](https://github.com/hogeheer499-commits/strix-halo-guide) - Reproducible setup, structured benchmark claims, raw evidence, failed paths, and cross-system community results
 - [Open WebUI](https://github.com/open-webui/open-webui) - Web interface
 
 ## License
