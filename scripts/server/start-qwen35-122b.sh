@@ -54,4 +54,5 @@ exec "$LLAMA_SERVER" \
   --metrics \
   --alias qwen3.5-122b \
   --flash-attn on \
-  --reasoning-budget 0
+  --reasoning-budget 0 \
+  --reasoning-format deepseek

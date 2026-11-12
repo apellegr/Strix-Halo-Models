@@ -1,0 +1,26 @@
+#!/bin/bash
+# Qwen3.6-35B-A3B (general intelligence, text MoE) - Strix Halo APU (gfx1151)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+if [[ -f "$REPO_DIR/.env" ]]; then source "$REPO_DIR/.env"; fi
+export HSA_ENABLE_SDMA=0
+export GPU_MAX_HEAP_SIZE=100
+export GPU_MAX_ALLOC_PERCENT=100
+export GPU_SINGLE_ALLOC_PERCENT=100
+export GPU_FORCE_64BIT_PTR=1
+export HIP_VISIBLE_DEVICES=0
+export HSA_OVERRIDE_GFX_VERSION=11.5.1
+MODELS_DIR="${MODELS_DIR:-$HOME/llm-models}"
+LLAMA_SERVER="${LLAMA_SERVER:-llama-server}"
+PORT="${PORT:-8001}"
+MODEL="$MODELS_DIR/general/qwen3.6-35b-a3b/Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"
+if [[ ! -f "$MODEL" ]]; then echo "ERROR: model not found: $MODEL" >&2; exit 1; fi
+exec "$LLAMA_SERVER" \
+  --model "$MODEL" \
+  --host 0.0.0.0 --port "$PORT" \
+  --n-gpu-layers 999 \
+  --ctx-size 32768 \
+  --parallel 1 \
+  --batch-size 4096 --ubatch-size 2048 \
+  --threads 16 --no-mmap --jinja --metrics \
+  --alias qwen3.6-35b --flash-attn on --reasoning-budget 0
