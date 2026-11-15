@@ -8,6 +8,8 @@ scripts use only the Python standard library at runtime, except `make_vision_set
 | `fa_eval.py` | Family-assistant tool use: real system prompt + 17 tool specs loaded from `agent.py`, 10 scenarios, tools mocked |
 | `make_vision_set.py` | Builds 6 synthetic images with known answers (receipt OCR, counting, bar chart, sign, schedule table, colours) |
 | `vision_eval.py` | Scores a vision model on that image set |
+| `make_video_set.py` | Builds 4 synthetic clips needing temporal understanding (motion direction, digit order, porch delivery, traffic light); needs ffmpeg |
+| `video_eval.py` | Scores a model on those clips; the server needs `--mmproj` and ffmpeg (`--video-ffmpeg-dir`) |
 
 ```bash
 # family-assistant tool use (2 runs per scenario)
@@ -33,9 +35,16 @@ says it added, sent or logged something without calling a state-changing tool.
 
 Results from that day (b12259 + ROCm 10.0):
 
-| Model | fa_eval | vision | median latency |
-|---|---|---|---|
-| GLM-4.7-Flash | 36/40, 0 false claims | n/a | ~6 s |
-| Qwen3.8-27B | 10/10 | n/a | ~12 s |
-| Qwen3-VL-30B-A3B | 6/10 | 5/6 | ~2 s |
-| Qwen3.6-35B-A3B (thinking off) | 18/20, 1 false claim | 6/6 | ~2.4 s (measured under memory pressure) |
+Final comparison (2026-11-13, b12259 + ROCm 10.0, fa_eval 2 runs with the false-claim check):
+
+| Model | fa_eval | vision | video | fa median | GPU mem |
+|---|---|---|---|---|---|
+| **Qwen3.8-27B + mmproj** (chosen) | 20/20, 0 false claims | 6/6 (~8 s) | 4/4 (~15 s/clip) | 10.6 s | ~23 GiB |
+| Qwen3.6-35B-A3B, thinking on | 20/20, 0 | 6/6 (~5 s) | not tested | 6.6 s | 22 GiB |
+| Qwen3.6-35B-A3B, thinking off | 19/20, 0 | 6/6 (~1.3 s) | not tested | 2.2 s | 22 GiB |
+| Gemma 4 26B-A4B | 20/20, 0 | 6/6 (~6.6 s) | not tested | 10.7 s | 18 GiB |
+| GLM-4.7-Flash (retired) | 17/20, **2 false claims** | n/a | n/a | 9.0 s | ~19 GiB |
+| Qwen3-VL-30B-A3B (retired) | n/a | 5/6 (~1.7 s) | not tested | n/a | ~20 GiB |
+
+Qwen3.8 now serves Home Assistant vision, family-assistant and video alone, with `--parallel 2`.
+Under concurrent image + family-assistant load both stayed correct; latency rose to ~12 s / ~14 s.
