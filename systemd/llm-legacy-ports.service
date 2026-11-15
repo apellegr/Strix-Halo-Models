@@ -1,0 +1,12 @@
+[Unit]
+Description=Forward retired LLM ports to Qwen3.8 on 8001 (8002 tcp; 8010 http with thinking off for Home Assistant)
+After=llm-qwen3.8-27b.service
+
+[Service]
+ExecStartPre=/bin/bash -c "until [ -f %h/workspace/Strix-Halo-Models/scripts/server/legacy-port-forward.py ]; do echo waiting for JuiceFS; sleep 5; done"
+ExecStart=/usr/bin/python3 -I %h/workspace/Strix-Halo-Models/scripts/server/legacy-port-forward.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

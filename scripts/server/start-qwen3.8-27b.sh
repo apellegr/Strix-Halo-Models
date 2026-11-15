@@ -19,14 +19,18 @@ export HSA_OVERRIDE_GFX_VERSION=11.5.1
 MODELS_DIR="${MODELS_DIR:-$HOME/llm-models}"
 PORT="${PORT:-8001}"
 MODEL="$MODELS_DIR/general/qwen3.8-27b/Qwen3.8-27B-UD-Q4_K_XL.gguf"
+MMPROJ="$MODELS_DIR/general/qwen3.8-27b/mmproj-F16.gguf"   # vision/video projector
+FFMPEG_DIR="$HOME/.local/opt/ffmpeg"                        # static ffmpeg for video input (no system ffmpeg on localai)
 if [[ ! -f "$MODEL" ]]; then echo "ERROR: model not found: $MODEL" >&2; exit 1; fi
+if [[ ! -f "$MMPROJ" ]]; then echo "ERROR: mmproj not found: $MMPROJ" >&2; exit 1; fi
 if [[ ! -x "$LLAMA_SERVER" ]]; then echo "ERROR: llama-server not found: $LLAMA_SERVER" >&2; exit 1; fi
 exec "$LLAMA_SERVER" \
   --model "$MODEL" \
+  --mmproj "$MMPROJ" --video-ffmpeg-dir "$FFMPEG_DIR" \
   --host 0.0.0.0 --port "$PORT" \
   --n-gpu-layers 999 \
   --ctx-size 262144 \
-  --parallel 1 \
+  --parallel 2 \
   --batch-size 4096 --ubatch-size 2048 \
   --threads 16 --load-mode none --jinja --metrics \
   --alias qwen3.8-27b --flash-attn on \
